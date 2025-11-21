@@ -5,11 +5,11 @@ Data_clean = pd.read_csv("Processed_data/data_cleaned.csv")
 
 # 1. Calcul de la vitesse du vent à 100 m (hauteur de l'éolienne)
 # Calcul de la Vitesse du Vent (Norme) - Aucune modification
-Data_clean["Wind_Norm"] = np.sqrt(Data_clean["u100"]**2 + Data_clean["v100"]**2)
+Data_clean["Wind_Norm"] = np.sqrt(Data_clean["speed_longitudinale_100m"]**2 + Data_clean["speed_latitudinale_100m"]**2)
 
 # Calcul de l'Angle du Vecteur (vers lequel souffle le vent)
-# Utilise np.arctan2(V, U) pour obtenir l'angle en radians
-Data_clean["Vector_Angle"] = np.arctan2(Data_clean["v100"], Data_clean["u100"])
+# np.arctan2(V, U) pour obtenir l'angle en radians
+Data_clean["Vector_Angle"] = np.arctan2(Data_clean["speed_latitudinale_100m"], Data_clean["speed_longitudinale_100m"])
 
 # Conversion en Degrés
 Data_clean["Vector_Angle_Deg"] = Data_clean["Vector_Angle"] * (180 / np.pi)
@@ -19,12 +19,14 @@ Data_clean["Vector_Angle_Deg"] = Data_clean["Vector_Angle"] * (180 / np.pi)
 # Normalisation pour que l'angle soit entre 0 et 360 degrés
 Data_clean["Wind_Dir_Meteo"] = (Data_clean["Vector_Angle_Deg"] + 180) % 360
 
+# créarion de la composante V^3. La puissance d'une éolienne est proportionnelle au cube de la vitesse du vent
+Data_clean["Wind_Norm_Cubes"] = Data_clean["Wind_Norm"]**3
 
 # 2. Calcul de la densité de l'air: ρ= n*M/V - ρ= M*P/(R*T)
 # Constantes
 R = 8.314  # J/(kg·K) - Constante spécifique pour l'air sec
 M = 0.02896  # kg/mol - Masse molaire de l'air sec
-Data_clean["Air_density"]=Data_clean["sp"]*M/(R*Data_clean["t2m"])
+Data_clean["Air_density"]=Data_clean["surface_pressure"]*M/(R*Data_clean["2m_temperature"])
 
 # 3. Création des Lags - features historiques/séquencielles
 # Ces lags vont modélser l'autocorrélation de la série temporelle de la production éolienne
@@ -71,4 +73,4 @@ print(missing_data[missing_data > 0])       # pas de données manquantes
 
 
 # sauvegarde des données nettoyées
-Data_clean.to_csv("Processed_data/data_ingineering.csv", index=False)
+Data_clean.to_csv("Processed_data/data_engineering.csv", index=False)

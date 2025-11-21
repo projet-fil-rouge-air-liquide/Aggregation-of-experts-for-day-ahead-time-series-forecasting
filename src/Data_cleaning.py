@@ -50,13 +50,24 @@ MTO = MTO.rename(columns={"valid_time": "Date_Heure"})
 data = pd.merge(RTE, MTO, on=["Date_Heure"], how="inner")
 # tri des données par Date_Heure
 data = data.sort_values(by="Date_Heure").reset_index(drop=True)
-# sauvegarde des données nettoyées
-data.to_csv("data_cleaned.csv", index=False)
+
+                            # AJUSTEMENTS FINAUX
+# modification des noms de colonnes
+data = data.rename(columns={
+    "u100":"speed_longitudinale_100m",
+    "v100":"speed_latitudinale_100m",
+    "msl":"mean_sea_level_pressure",
+    "sp":"surface_pressure",
+    "sst":"sea_surface_temperature",
+    "t2m":"2m_temperature"
+})
 
 # ajout d'un index temporel
 data["Date_Heure"] = pd.to_datetime(data["Date_Heure"])
-data = data.set_index("Date_Heure")
+data = data.set_index("Date_Heure",drop=False)
 
+# sauvegarde des données nettoyées
+data.to_csv("Processed_data/data_cleaned.csv", index=True)
 
                             # ANALYSE DES DONNES NETTOYEES  
 # vérification des données manquantes
