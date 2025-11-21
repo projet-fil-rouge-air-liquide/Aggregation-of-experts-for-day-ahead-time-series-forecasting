@@ -12,3 +12,9 @@ Thumbs.db
 
 # Cache
 .cache/
+
+# Documentation
+Documentation/
+opera-python/
+
+
