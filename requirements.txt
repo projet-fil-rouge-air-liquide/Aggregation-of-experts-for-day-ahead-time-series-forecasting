@@ -12,8 +12,12 @@ matplotlib==3.10.*
 plotly==6.3.*
 
 # =========================
-# MACHINE LEARNING & NLP
+# MACHINE LEAR
 # =========================
 scikit-learn==1.7.*
 torch==2.8.*
+# LightGBM doit être compilé pour ARM64, ne pas utiliser de wheels précompilés
+lightgbm==4.6.0 --no-binary=lightgbm
+
+
 

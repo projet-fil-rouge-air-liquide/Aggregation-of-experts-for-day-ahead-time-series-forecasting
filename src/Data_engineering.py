@@ -24,23 +24,30 @@ Data_clean["Wind_Norm_Cubes"] = Data_clean["Wind_Norm"]**3
 
 # 2. Calcul de la densité de l'air: ρ= n*M/V - ρ= M*P/(R*T)
 # Constantes
-R = 8.314  # J/(kg·K) - Constante spécifique pour l'air sec
+R = 8.314  # J/(kg·K) 
 M = 0.02896  # kg/mol - Masse molaire de l'air sec
 Data_clean["Air_density"]=Data_clean["surface_pressure"]*M/(R*Data_clean["2m_temperature"])
 
 # 3. Création des Lags - features historiques/séquencielles
 # Ces lags vont modélser l'autocorrélation de la série temporelle de la production éolienne
-# c'est à dire la dépendance des valeurs actuelles aux valeurs passées
-# Lag 1 heure
-Data_clean["Y_lag_1h"] = Data_clean["Eolien_MW"].shift(1)
-# Lag 1 jour
-Data_clean["Y_lag_1j"] = Data_clean["Eolien_MW"].shift(24)
-# Lag 1 semaine
-Data_clean["Y_lag_7j"] = Data_clean["Eolien_MW"].shift(168)
-# Lag 1 mois (30 jours)
-Data_clean["Y_lag_30j"] = Data_clean["Eolien_MW"].shift(720)
-# Lag 1 saison (3 mois)
-Data_clean["Y_lag_season"] = Data_clean["Eolien_MW"].shift(2190)
+# c'est à dire la dépendance des valeurs actuelles aux valeurs passées. Dans le cas du vent on peut
+# se limiter à des Lag de l'ordre de la semaine. La saisonnalité plus long terme sera capturée par les features calendaires 
+# 3.1 construction de tags sur Eolien_MW
+
+Data_clean["Y_lag_1h"] = Data_clean["Eolien_MW"].shift(1)   # Lag 1 heure
+Data_clean["Y_lag_24h"] = Data_clean["Eolien_MW"].shift(24)  # Lag 24 heures
+Data_clean["Y_lag_48h"] = Data_clean["Eolien_MW"].shift(48)  # Lag 48 heures
+Data_clean["Y_lag_72h"] = Data_clean["Eolien_MW"].shift(72)  # Lag 72 heures
+Data_clean["Y_lag_96h"] = Data_clean["Eolien_MW"].shift(96)  # Lag 96 heures
+Data_clean["Y_lag_120h"] = Data_clean["Eolien_MW"].shift(120)  # Lag 120 heures
+
+# 3.2 construction de lags sur la composante de vent normée
+Data_clean["Wind_Norm_lag_1h"] = Data_clean["Wind_Norm"].shift(1)
+Data_clean["Wind_Norm_lag_24h"] = Data_clean["Wind_Norm"].shift(24)
+Data_clean["Wind_Norm_lag_48h"] = Data_clean["Wind_Norm"].shift(48)
+Data_clean["Wind_Norm_lag_72h"] = Data_clean["Wind_Norm"].shift(72)
+Data_clean["Wind_Norm_lag_96h"] = Data_clean["Wind_Norm"].shift(96)
+Data_clean["Wind_Norm_lag_120h"] = Data_clean["Wind_Norm"].shift(120)
 
 # 4. création des features calendaires. Elles vont modéliser l'impact du facteur saisonnier.
 # C'est à dire l'impact du fait qu'on est en janvier (ça souffle => production) ou en juin (moins de production à priori) 
@@ -49,6 +56,7 @@ Data_clean = Data_clean.set_index("Date_Heure",drop=False)
 
 Data_clean["Hour"] = Data_clean.index.hour
 Data_clean["Day"] = Data_clean.index.day
+Data_clean["Weekday"] = Data_clean.index.weekday
 Data_clean["Month"] = Data_clean.index.month
 
 # on transforme les features calendaires en variables cycliques pour mieux capturer la nature périodique du temps
@@ -56,15 +64,27 @@ Data_clean["Month"] = Data_clean.index.month
 Data_clean["Hour_sin"] = np.sin(2 * np.pi * Data_clean["Hour"] / 24)
 Data_clean["Hour_cos"] = np.cos(2 * np.pi * Data_clean["Hour"] / 24)
 
+# Jour de la semaine - Cycle de 7 jours
+Data_clean["Weekday_sin"] = np.sin(2 * np.pi * Data_clean["Weekday"] / 7)
+Data_clean["Weekday_cos"] = np.cos(2 * np.pi * Data_clean["Weekday"] / 7)
+
 # Mois - Cycle de 12 mois
 Data_clean["Month_sin"] = np.sin(2 * np.pi * Data_clean["Month"] / 12)
 Data_clean["Month_cos"] = np.cos(2 * np.pi * Data_clean["Month"] / 12)
+
+# intégrer la courbe de puissance générique d'une éolienne
+# on considère une éolienne type avec:
+# - une vitesse de cut-in (vitesse minimale pour produire de l'électricité) de 3 m/s
+# - une vitesse nominale (vitesse à laquelle l'éolienne produit à pleine capacité) de 12 m/s
+# - une vitesse de cut-out (vitesse maximale avant arrêt pour sécurité) de 25 m/s
+
+                                   # A FAIRE
 
 
 # Clean des dernières données
 # supprimer la colonne Perimetre et ajout d'une colonne date en index
 Data_clean = Data_clean.drop(columns=["Perimetres"], errors="ignore")
-# supprimer les 2190 premières lignes avec les valeurs Nan dues aux lags
+# supprimer les 120 premières lignes avec les valeurs Nan dues aux lags
 Data_clean = Data_clean.dropna().reset_index(drop=True)
 # vérification des données manquantes
 missing_data = Data_clean.isnull().sum()
