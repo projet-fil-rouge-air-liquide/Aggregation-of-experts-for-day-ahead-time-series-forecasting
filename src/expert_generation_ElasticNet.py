@@ -78,8 +78,18 @@ y_pred_1 = expert_1_EN_cv.predict(X_test) # prédiction
 
 # estimation des performances de l'expert 1_EN
 rmse_expert1_EN = np.sqrt(mean_squared_error(y_test, y_pred_1))
-print("Expert 1 (physique) - RMSE :", rmse_expert1_EN)
+print("Expert 1 EN - RMSE :", rmse_expert1_EN)
 
+# estimation des coefficients
+coeff_EN = expert_1_EN_cv.named_steps["enet"].coef_
+intercept_EN = expert_1_EN_cv.named_steps["enet"].intercept_
+
+coef_table = pd.DataFrame({
+    "coefficients":coeff_EN,
+    "features":features_exp1
+}).sort_values("coefficients",ascending=True)
+
+print(coef_table)
 
 # représentation de la prédiction vs valeurs réeels
 plt.figure(figsize=(7,7))
@@ -97,3 +107,12 @@ plt.plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=2)
 plt.grid(True)
 plt.tight_layout()
 plt.show()
+
+
+# On obtient des coefficients nuls pour:
+# Wind_Norm_lag_1h
+# Air_density -> ok: colinéarité avec la pression et la température
+# Month_sin > ok: colinéarité avec Month_cos
+# Weekday_cos -> ok: colinéarité avec Weekday_cos
+
+
