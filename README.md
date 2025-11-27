@@ -30,7 +30,7 @@ Elles nécessitent un compte personnel sur la plateforme ERA5.
 
 
 ### 2. Données RTE
-Les données RTE sont automatiquement téléchargées/extraites/renommées lors du premier lancement du script suivant src/Data_cleaning.py
+Les données RTE sont automatiquement téléchargées/extraites/renommées lors du premier lancement du script suivant: src/Data_cleaning.py.
 Aucun téléchargement manuel n'est donc nécessaire.
 
 ### 3.Fonctionnement du repository & Workflow Git
