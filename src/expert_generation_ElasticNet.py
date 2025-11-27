@@ -113,6 +113,6 @@ plt.show()
 # Wind_Norm_lag_1h
 # Air_density -> ok: colinéarité avec la pression et la température
 # Month_sin > ok: colinéarité avec Month_cos
-# Weekday_cos -> ok: colinéarité avec Weekday_cos
+# Weekday_cos -> ok: colinéarité avec Weekday_sins
 
 
