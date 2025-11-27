@@ -11,7 +11,7 @@ import lightgbm
 
 
 # chargement des données
-Data_clean = pd.read_csv("Processed_data/data_engineering.csv")
+Data_clean = pd.read_csv("../Data/Processed_data/data_engineering.csv")
 
 # sélection des features pour l'expert 1 (toutes les features de Data_engineering)
 features_exp2 = [
@@ -94,3 +94,19 @@ y_pred_2_2 = expert_2_2.predict(X_test)  # prédiction
 print("Best iteration :", expert_2_2.best_iteration_)
 rmse_expert_2_2 = np.sqrt(mean_squared_error(y_test,y_pred_2_2)) 
 print("Expert 2_2  :", rmse_expert_2_2)
+
+# représentation de la prédiction vs valeurs réeels
+plt.figure(figsize=(7,7))
+
+plt.scatter(y_test, y_pred_2_2, alpha=0.5, s=10)
+
+plt.xlabel("Valeurs réelles (MW)")
+plt.ylabel("Valeurs prédites (MW)")
+plt.title("Scatter plot : Réel vs Prédit LGBM")
+max_val = max(max(y_test), max(y_pred_2_2))   
+min_val = min(min(y_test), min(y_pred_2_2))
+plt.plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=2)
+
+plt.grid(True)
+plt.tight_layout()
+plt.show()

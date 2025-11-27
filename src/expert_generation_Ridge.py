@@ -9,7 +9,7 @@ from sklearn.linear_model import RidgeCV
 from sklearn.model_selection import TimeSeriesSplit
 
 # chargement des données
-Data_clean = pd.read_csv("Processed_data/data_engineering.csv")
+Data_clean = pd.read_csv("../Data/Processed_data/data_engineering.csv")
 
 # sélection des features pour l'expert 1 (toutes les features de Data_engineering)
 features_exp1 = [
