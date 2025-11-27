@@ -3,45 +3,77 @@ import zipfile
 import os
 import pandas as pd
 
-RTE_URLS = {
-    "2021": "https://eco2mix.rte-france.com/download/eco2mix/eCO2mix_RTE_Annuel-Definitif_2021.zip",
-   # "2022": "https://eco2mix.rte-france.com/download/eco2mix/eCO2mix_RTE_Annuel-Definitif_2022.zip",
-   # "2023": "https://eco2mix.rte-france.com/download/eco2mix/eCO2mix_RTE_Annuel-Definitif_2023.zip",
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+RAW_DATA_DIR = os.path.join(BASE_DIR, "Data", "Raw_Data")
+os.makedirs(RAW_DATA_DIR, exist_ok=True)
+
+TARGET_FILENAMES = {
+    "2021": "RTE_Normandie_2021.csv",
+    "2022": "RTE_Normandie_2022.csv",
+    "2023": "RTE_Normandie_2023.csv"
 }
 
-def download_rte_zip(url: str, out_path: str):
-    """
-    Télécharge fichier ZIP depuis RTE et l'enregistrer localement.
-    """
-    print(f"Téléchargement depuis : {url} ...")
-    r = requests.get(url, stream=True)
-    r.raise_for_status()  # arrêt si erreur HTTP
+def download_rte_zip(url: str):
+    filename = url.split("/")[-1]
+    out_path = os.path.join(RAW_DATA_DIR, filename)
 
+    r = requests.get(url, stream=True)
     with open(out_path, "wb") as f:
         for chunk in r.iter_content(chunk_size=8192):
             f.write(chunk)
-
-    print(f"Fichier sauvegardé sous : {out_path}")
-
-def extract_csv_from_zip(zip_path, output_dir="csv_output"):
-    os.makedirs(output_dir, exist_ok=True)
-
-    with zipfile.ZipFile(zip_path, 'r') as z:
-        csv_name = [f for f in z.namelist() if f.endswith(".csv")][0]
-        out_path = os.path.join(output_dir, csv_name)
-        z.extract(csv_name, path=output_dir)
-        print(f"CSV extrait dans : {out_path}")
-        return out_path
-    
-def download_and_extract_all(output_zip="rte_zip", output_csv="csv_rte"):
-    os.makedirs(output_zip, exist_ok=True)
-
-    for year, url in RTE_URLS.items():
-        zip_path = os.path.join(output_zip, f"RTE_{year}.zip")
-        download_rte_zip(url, zip_path)
-        extract_csv_from_zip(zip_path, output_csv)
-
-if __name__ == "__main__":
-    download_and_extract_all()
+    return out_path
 
 
+def extract_csv_from_zip(zip_path: str):
+
+    year = zip_path.split("_")[-1].split(".")[0]
+
+    with zipfile.ZipFile(zip_path, "r") as z:
+        files = z.namelist()
+
+        # Chercher CSV sinon XLSX
+        candidates = [f for f in files if f.endswith(".csv") or f.endswith(".xlsx")]
+
+        if not candidates:
+            return None
+
+        extracted_file = candidates[0]
+
+        final_name = TARGET_FILENAMES.get(year, f"RTE_{year}.csv")
+        final_path = os.path.join(RAW_DATA_DIR, final_name)
+
+        z.extract(extracted_file, RAW_DATA_DIR)
+        extracted_path = os.path.join(RAW_DATA_DIR, extracted_file)
+
+        if extracted_file.endswith(".xlsx"):
+            df = pd.read_excel(extracted_path)
+            df.to_csv(final_path, index=False)
+            os.remove(extracted_path)
+        else:
+            os.rename(extracted_path, final_path)
+
+    os.remove(zip_path)
+
+    return final_path
+
+
+def data_already_loaded():
+    return all(
+        os.path.exists(os.path.join(RAW_DATA_DIR, fname))
+        for fname in TARGET_FILENAMES.values()
+    )
+
+
+def download_and_extract_all():
+    if data_already_loaded():
+        return
+
+    urls = [
+        "https://eco2mix.rte-france.com/download/eco2mix/eCO2mix_RTE_Annuel-Definitif_2021.zip",
+        "https://eco2mix.rte-france.com/download/eco2mix/eCO2mix_RTE_Annuel-Definitif_2022.zip",
+        "https://eco2mix.rte-france.com/download/eco2mix/eCO2mix_RTE_Annuel-Definitif_2023.zip"
+    ]
+
+    for url in urls:
+        zip_path = download_rte_zip(url)
+        extract_csv_from_zip(zip_path)

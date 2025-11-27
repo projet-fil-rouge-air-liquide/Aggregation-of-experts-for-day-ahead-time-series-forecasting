@@ -1,17 +1,24 @@
-# chargement des données
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import pandas as pd
 import numpy as np
+from utils.data_loader import download_and_extract_all
 
-MTO = pd.read_csv("RAW_data/MTO_2021_22_23.csv",
+# chargement des données
+download_and_extract_all()
+
+
+MTO = pd.read_csv("../Data/Raw_Data/MTO_2021_22_23.csv",
                   encoding="latin-1",
                   sep=",")
-RTE_2021 = pd.read_csv("RAW_data/RTE_Normandie_2021.csv",
+RTE_2021 = pd.read_csv("../Data/Raw_Data/RTE_Normandie_2021.csv",
                   encoding="latin-1",
                   sep=";")
-RTE_2022 = pd.read_csv("RAW_data/RTE_Normandie_2022.csv",
+RTE_2022 = pd.read_csv("../Data/Raw_Data/RTE_Normandie_2022.csv",
                   encoding="latin-1",
                   sep=";")
-RTE_2023 = pd.read_csv("RAW_data/RTE_Normandie_2023.csv",
+RTE_2023 = pd.read_csv("../Data/Raw_Data/RTE_Normandie_2023.csv",
                   encoding="latin-1",
                   sep=";")
 
@@ -67,7 +74,7 @@ data["Date_Heure"] = pd.to_datetime(data["Date_Heure"])
 data = data.set_index("Date_Heure",drop=False)
 
 # sauvegarde des données nettoyées
-data.to_csv("Processed_data/data_cleaned.csv", index=True)
+data.to_csv("../Data/Processed_data/data_cleaned.csv", index=True)
 
                             # ANALYSE DES DONNES NETTOYEES  
 # vérification des données manquantes
