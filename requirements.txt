@@ -18,6 +18,7 @@ plotly==6.3.*
 scikit-learn==1.7.*
 torch==2.8.*
 lightgbm==4.6.*
+statsmodels==0.14.*
 
 
 
