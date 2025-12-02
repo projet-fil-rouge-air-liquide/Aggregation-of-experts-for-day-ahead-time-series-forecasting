@@ -9,7 +9,7 @@ from sklearn.linear_model import ElasticNetCV
 from sklearn.model_selection import TimeSeriesSplit
 
 # chargement des données
-Data_clean = pd.read_csv("../Data/Processed_data/data_engineering.csv")
+Data_clean_Belgique = pd.read_csv("../Data/Processed_data/data_engineering_belgique.csv")
 
 # sélection des features pour l'expert 1 (toutes les features de Data_engineering)
 features_exp1 = [
@@ -40,20 +40,21 @@ features_exp1 = [
     "Wind_Dir_Meteo_cos"
 ]
 # définition du Label
-labels = Data_clean["Eolien_MW"]
+labels_Belgique = Data_clean_Belgique["Eolien_MW"]
+
 # split des données et features et target - ATTENTION - ne pas mélanger passé et futur
-n = len(Data_clean)
-train_end = int(n*0.6)
-valid_end = int(0.8*n)
+n_Belgique = len(Data_clean_Belgique)
+train_end = int(n_Belgique*0.6)
+valid_end = int(0.8*n_Belgique)
 
-X_train = Data_clean[features_exp1].iloc[:train_end]
-y_train = labels.iloc[:train_end]
+X_train = Data_clean_Belgique[features_exp1].iloc[:train_end]
+y_train = labels_Belgique.iloc[:train_end]
 
-X_valid = Data_clean[features_exp1].iloc[train_end:valid_end]  # valid servira à comparer plusieurs modèle (utilisés après)
-y_valid = labels.iloc[train_end:valid_end]  # valid servira à comparer plusieurs modèle (utilisés après) 
+X_valid = Data_clean_Belgique[features_exp1].iloc[train_end:valid_end]  # valid servira à comparer plusieurs modèle (utilisés après)
+y_valid = labels_Belgique.iloc[train_end:valid_end]  # valid servira à comparer plusieurs modèle (utilisés après)
 
-X_test = Data_clean[features_exp1].iloc[valid_end:]
-y_test = labels.iloc[valid_end:]
+X_test = Data_clean_Belgique[features_exp1].iloc[valid_end:]
+y_test = labels_Belgique.iloc[valid_end:]
 
 # K_fold pour estimer le meilleur hyper paramètre
 tsv = TimeSeriesSplit(n_splits=5) # Kfold appliqué aux séries temporelles

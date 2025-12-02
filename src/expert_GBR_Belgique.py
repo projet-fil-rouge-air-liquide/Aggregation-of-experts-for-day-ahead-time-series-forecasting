@@ -58,40 +58,30 @@ y_valid = labels_Belgique.iloc[train_end:valid_end]  # valid servira à comparer
 X_test = Data_clean_Belgique[features_exp1].iloc[valid_end:]
 y_test = labels_Belgique.iloc[valid_end:]
 
-# entrainement/fit du modèle expert 2_2 LGBM
-expert_2_2 = LGBMRegressor(
-    n_estimators=5000,
-    learning_rate=0.01,
-    num_leaves=127,
-    max_depth=-1,
-    min_child_samples=20,
-    subsample=0.8,
-    colsample_bytree=0.8,
-    random_state=42
-)
+# fit/entrainement du modèle expert 2_1 GradientBoostingRegressor
+expert_2_1 = GradientBoostingRegressor(loss="squared_error",     # ne pas standardiser les input dans le cas des algos à arbres: cela peut dégrader les performances
+                                      random_state=42,
+                                      n_estimators=300,
+                                      max_depth=10,
+                                      learning_rate=0.05,
+                                      subsample=0.8)
 
-expert_2_2.fit(
-    X_train, y_train,
-    eval_set=[(X_valid, y_valid)],
-    eval_metric="rmse",
-    callbacks=[early_stopping(stopping_rounds=200)]
-)
-y_pred_2_2 = expert_2_2.predict(X_test)  # prédiction
+expert_2_1.fit(X_train,y_train)                # entrainement
+y_pred_2_1 = expert_2_1.predict(X_test)        # prédiction
 # performances
-print("Best iteration :", expert_2_2.best_iteration_)
-rmse_expert_2_2 = np.sqrt(mean_squared_error(y_test,y_pred_2_2)) 
-print("Expert 2_2  :", rmse_expert_2_2)
+rmse_expert_2_1 = np.sqrt(mean_squared_error(y_test,y_pred_2_1)) 
+print("Expert 2_1  :", rmse_expert_2_1)
 
 # représentation de la prédiction vs valeurs réeels
 plt.figure(figsize=(7,7))
 
-plt.scatter(y_test, y_pred_2_2, alpha=0.5, s=10)
+plt.scatter(y_test, y_pred_2_1, alpha=0.5, s=10)
 
 plt.xlabel("Valeurs réelles (MW)")
 plt.ylabel("Valeurs prédites (MW)")
-plt.title("Scatter plot : Réel vs Prédit LGBM")
-max_val = max(max(y_test), max(y_pred_2_2))   
-min_val = min(min(y_test), min(y_pred_2_2))
+plt.title("Scatter plot : Réel vs Prédit GradientBoostingRegressor")
+max_val = max(max(y_test), max(y_pred_2_1))   
+min_val = min(min(y_test), min(y_pred_2_1))
 plt.plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=2)
 
 plt.grid(True)

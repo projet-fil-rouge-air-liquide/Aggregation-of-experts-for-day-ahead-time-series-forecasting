@@ -8,10 +8,12 @@ request = {
         "sea_surface_temperature",
         "2m_temperature",
         "100m_u_component_of_wind",
-        "100m_v_component_of_wind"
+        "100m_v_component_of_wind",
+        "10m_u_component_of_wind",
+        "10m_v_component_of_wind"
     ],
-    "location": {"longitude": -0.75, "latitude": 49.0},
-    "date": ["2021-01-01/2023-12-31"],
+    "location": {"longitude": 3, "latitude": 51.5},
+    "date": ["2018-01-01/2025-12-01"],
     "data_format": "csv"
 }
 
