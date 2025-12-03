@@ -4,15 +4,22 @@ import numpy as np
 Data_clean_Belgique = pd.read_csv("Processed_data/data_cleaned_Belgique.csv")
 Data_clean_Normandie = pd.read_csv("Processed_data/data_cleaned_Normandie.csv")
 
+
 # 1. Feauture engineering sur la composante vent
-# 1.1 Calcul de la vitesse du vent à 100 m (hauteur de l'éolienne)
+# 1.1 Calcul de la vitesse du vent à 100 m (hauteur de l'éolienne) et à 10m (uniquement en Belgique - je n'ai pas modifié la MTO pour Normandie)
 # Calcul de la Vitesse du Vent (Norme) - Aucune modification
 Data_clean_Belgique["Wind_Norm"] = np.sqrt(Data_clean_Belgique["speed_longitudinale_100m"]**2 + Data_clean_Belgique["speed_latitudinale_100m"]**2)
 Data_clean_Normandie["Wind_Norm"] = np.sqrt(Data_clean_Normandie["speed_longitudinale_100m"]**2 + Data_clean_Normandie["speed_latitudinale_100m"]**2)
 
+Data_clean_Belgique["Wind_Norm_10m"] = np.sqrt(Data_clean_Belgique["speed_longitudinale_10m"]**2 + Data_clean_Belgique["speed_latitudinale_10m"]**2)
+
 # créarion de la composante V^3 car la puissance d'une éolienne est proportionnelle au cube de la vitesse du vent
 Data_clean_Belgique["Wind_Norm_Cubes"] = Data_clean_Belgique["Wind_Norm"]**3
 Data_clean_Normandie["Wind_Norm_Cubes"] = Data_clean_Normandie["Wind_Norm"]**3
+
+Data_clean_Belgique["Wind_Norm_Cubes_10m"] = Data_clean_Belgique["Wind_Norm_10m"]**3
+
+
 # 1.2 Mesure de la variabilité du vent et indice de turbulence: en effet, la production éolienne est affectée par la variabilité du vent
 Data_clean_Belgique["Wind_mean_3h"] = Data_clean_Belgique['Wind_Norm'].rolling(window=3, min_periods=1).mean() # mesure le vent moyen sur 3 heures
 Data_clean_Belgique['wind_std_3h'] = Data_clean_Belgique['Wind_Norm'].rolling(window=3, min_periods=1).std() # mesure l'écart type du vent sur 3 heures
@@ -24,26 +31,45 @@ Data_clean_Normandie['wind_std_3h'] = Data_clean_Normandie['Wind_Norm'].rolling(
 Data_clean_Normandie['wind_cv_3h'] = Data_clean_Normandie['wind_std_3h'] / Data_clean_Normandie['Wind_mean_3h'].replace(0, np.nan) # mesure la turbulance comme le coefficient de variation
 Data_clean_Normandie['wind_cv_3h'] = Data_clean_Normandie['wind_cv_3h'].fillna(0) # retirer toutes les valeurs NaN résultant de la division par zéro
 
+Data_clean_Belgique["Wind_mean_3h_10m"] = Data_clean_Belgique['Wind_Norm_10m'].rolling(window=3, min_periods=1).mean() # mesure le vent moyen sur 3 heures
+Data_clean_Belgique['wind_std_3h_10m'] = Data_clean_Belgique['Wind_Norm_10m'].rolling(window=3, min_periods=1).std() # mesure l'écart type du vent sur 3 heures
+Data_clean_Belgique['wind_cv_3h_10m'] = Data_clean_Belgique['wind_std_3h_10m'] / Data_clean_Belgique['Wind_mean_3h_10m'].replace(0, np.nan) # mesure la turbulance comme le coefficient de variation
+Data_clean_Belgique['wind_cv_3h_10m'] = Data_clean_Belgique['wind_cv_3h_10m'].fillna(0) # retirer toutes les valeurs NaN résultant de la division par zéro
 
 # 1.3 intégration du caractère circulaire du vent
 # calcul de la direction du vent
 Data_clean_Belgique["Wind_Direction"] = np.arctan2(Data_clean_Belgique["speed_latitudinale_100m"], Data_clean_Belgique["speed_longitudinale_100m"])
 Data_clean_Normandie["Wind_Direction"] = np.arctan2(Data_clean_Normandie["speed_latitudinale_100m"], Data_clean_Normandie["speed_longitudinale_100m"])
+
+Data_clean_Belgique["Wind_Direction_10m"] = np.arctan2(Data_clean_Belgique["speed_latitudinale_10m"], Data_clean_Belgique["speed_longitudinale_10m"])
+
 # conversion en degrés
 Data_clean_Belgique["Wind_Dir_Meteo"] = (np.degrees(Data_clean_Belgique["Wind_Direction"]) + 360) % 360
 Data_clean_Normandie["Wind_Dir_Meteo"] = (np.degrees(Data_clean_Normandie["Wind_Direction"]) + 360) % 360
+
+
+Data_clean_Belgique["Wind_Dir_Meteo_10m"] = (np.degrees(Data_clean_Belgique["Wind_Direction_10m"]) + 360) % 360
 # passer à la direction météo (d'où vient le vent)
 Data_clean_Belgique["Wind_Dir_Meteo"] = (Data_clean_Belgique["Wind_Dir_Meteo"] + 180) % 360
 Data_clean_Normandie["Wind_Dir_Meteo"] = (Data_clean_Normandie["Wind_Dir_Meteo"] + 180) % 360
+
+Data_clean_Belgique["Wind_Dir_Meteo_10m"] = (Data_clean_Belgique["Wind_Dir_Meteo_10m"] + 180) % 360
 # transformation pour capturer la nature cyclique de la direction du vent
 Data_clean_Belgique["Wind_Dir_Meteo_sin"] = np.sin(2 * np.pi * Data_clean_Belgique["Wind_Dir_Meteo"] / 360)
 Data_clean_Belgique["Wind_Dir_Meteo_cos"] = np.cos(2 * np.pi * Data_clean_Belgique["Wind_Dir_Meteo"] / 360)
 
 Data_clean_Normandie["Wind_Dir_Meteo_sin"] = np.sin(2 * np.pi * Data_clean_Normandie["Wind_Dir_Meteo"] / 360)
 Data_clean_Normandie["Wind_Dir_Meteo_cos"] = np.cos(2 * np.pi * Data_clean_Normandie["Wind_Dir_Meteo"] / 360)
+
+Data_clean_Belgique["Wind_Dir_Meteo_sin_10m"] = np.sin(2 * np.pi * Data_clean_Belgique["Wind_Dir_Meteo_10m"] / 360)
+Data_clean_Belgique["Wind_Dir_Meteo_cos_10m"] = np.cos(2 * np.pi * Data_clean_Belgique["Wind_Dir_Meteo_10m"] / 360)
+
 # suppression des colonnes intermédiaires inutilrs
 Data_clean_Belgique = Data_clean_Belgique.drop(columns=["Wind_Direction", "Wind_Dir_Meteo"], errors="ignore")
 Data_clean_Normandie = Data_clean_Normandie.drop(columns=["Wind_Direction", "Wind_Dir_Meteo"], errors="ignore")
+
+Data_clean_Belgique = Data_clean_Belgique.drop(columns=["Wind_Direction_10m", "Wind_Dir_Meteo_10m"], errors="ignore")
+
 
 # 2. Calcul de la densité de l'air: ρ= n*M/V - ρ= M*P/(R*T)
 # Constantes

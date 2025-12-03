@@ -4,10 +4,13 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import mean_squared_error
 from sklearn.ensemble import GradientBoostingRegressor
 from lightgbm import LGBMRegressor,early_stopping
+import seaborn as sns
+from matplotlib.colors import LogNorm
+
 # Création de deux experts non linéaires avec :
 # - expert_2_1: GradientBoostingRegressor
 # - expert_2_2: LGBM
-import lightgbm
+
 
 
 # chargement des données
@@ -83,17 +86,30 @@ rmse_expert_2_2 = np.sqrt(mean_squared_error(y_test,y_pred_2_2))
 print("Expert 2_2  :", rmse_expert_2_2)
 
 # représentation de la prédiction vs valeurs réeels
-plt.figure(figsize=(7,7))
+plt.style.use("ggplot")   
 
-plt.scatter(y_test, y_pred_2_2, alpha=0.5, s=10)
+plt.figure(figsize=(9,7))
+
+plt.hexbin(
+    y_test, y_pred_2_2,
+    gridsize=60,
+    cmap="viridis",
+    mincnt=1,
+    norm=LogNorm()
+)
+plt.colorbar(label="Densité (log)")
+
+max_val = max(max(y_test), max(y_pred_2_2))
+min_val = min(min(y_test), min(y_pred_2_2))
+plt.plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=1.5)
+
+coef = np.polyfit(y_test, y_pred_2_2, 1)
+poly = np.poly1d(coef)
+plt.plot(y_test, poly(y_test), color="orange", linewidth=2)
 
 plt.xlabel("Valeurs réelles (MW)")
 plt.ylabel("Valeurs prédites (MW)")
-plt.title("Scatter plot : Réel vs Prédit LGBM")
-max_val = max(max(y_test), max(y_pred_2_2))   
-min_val = min(min(y_test), min(y_pred_2_2))
-plt.plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=2)
+plt.title("Réel vs Prédit — LGBM")
 
-plt.grid(True)
 plt.tight_layout()
 plt.show()
