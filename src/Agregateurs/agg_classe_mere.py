@@ -11,9 +11,16 @@ from src.config.features import FEATURES_EN, FEATURES_RIDGE, FEATURES_LGBM
 from src.config.data_train_valid_test import X_train,X_valid,X_test,y_train,y_valid,y_test 
 from utils.fonction import fit_predict_eval,rmse,predict,fit
 
-from src.Experts.expert_ElasticNet import ElasticNetExpert
+from src import Experts
 from src.Experts.expert_LGBM import LGBMExpert
 from src.Experts.expert_Ridge import RidgeExpert
+
+class agg_lin():
+    def __init__(self,experts):
+        self.experts = experts
+        self.experts_names = [e.names for e in experts] 
+
+        pass
 
 # créer Experts
 expert_EN = ElasticNetExpert(features=FEATURES_EN)
@@ -43,27 +50,7 @@ agg_lin = Pipeline([
 y_pred_agg,rmse_agg = fit_predict_eval(agg_lin,X_train_exp,X_test_exp,y_valid,y_test)
 
 
-index = pd.date_range(start='2025-11-28 00:00', periods=72, freq='H')
-# sélectionner la fenêtre 72h depuis y_test et réindexer sur l'index choisi
-# on utilise les valeurs pour éviter tout conflit d'index existant
-y_day_ahead = pd.Series(y_test.iloc[:72].values, index=index)
-# convertir les prédictions en Series et aligner les index fournis pour le plot
-y_day_ahead_pred_EN = pd.Series(y_pred_exp[0][:72], index=index)
-y_day_ahead_pred_R = pd.Series(y_pred_exp[1][:72], index=index)
-y_day_ahead_pred_LGBM = pd.Series(y_pred_exp[2][:72], index=index)
-y_day_ahead_pred_agg_lin = pd.Series(y_pred_agg[:72], index=index)
-# visualisation (tous tracés sur le même index temporel explicite)
-plt.figure(figsize=(10,6))
-plt.plot(index, y_day_ahead, label="Valeurs réelles", color="red")
-plt.plot(index, y_day_ahead_pred_EN, color = "blue", label="Prédictions EN", linestyle='--', linewidth=2, zorder=5)
-plt.plot(index, y_day_ahead_pred_R, color="orange", label="Prédictions R", linestyle='--', linewidth=2, zorder=5)
-plt.plot(index, y_day_ahead_pred_LGBM, color= "green", label="Prédictions LGBM",linestyle='--', linewidth=2, zorder=5)
-plt.plot(index, y_day_ahead_pred_agg_lin, color= "black", label="Prédictions Agg_Lin",linestyle='--', linewidth=2, zorder=5)
-plt.xlabel("Index temporel")   
-plt.ylabel("Production éolienne (MW)") 
-plt.title("Prédictions à 72h - Expert vs Valeurs réelles")
-plt.legend()
-plt.show()
+
 
 
 

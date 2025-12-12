@@ -1,7 +1,7 @@
 import pandas as pd
 
 # chargement des données
-Data_clean_Belgique = pd.read_csv("Data/Processed_data/data_engineering_belgique_test.csv")
+Data_clean_Belgique = pd.read_csv("Data/Processed_data/data_engineering_belgique.csv")
 # définition du Label
 labels_Belgique = Data_clean_Belgique["Eolien_MW"]
 

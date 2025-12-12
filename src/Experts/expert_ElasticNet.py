@@ -4,7 +4,10 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import ElasticNetCV
 from sklearn.model_selection import TimeSeriesSplit
 
-class ElasticNetExpert():
+from src.Experts.base_expert import BaseExpert
+
+
+class ElasticNetExpert(BaseExpert):
     def __init__(
         self,
         features,
@@ -13,12 +16,13 @@ class ElasticNetExpert():
         max_iter = 10000,
         l1_ratios=None
         ):
-
-        self.features=features
+        # initialisation de la classe mère
+        super().__init__(features,name="ElasticNet")
+        # paramètres de modèle
         self.alphas = alphas if alphas is not None else np.logspace(-3, 3, 50)
         self.l1_ratios = l1_ratios if l1_ratios is not None else np.linspace(0.1, 1.0, 10)
         self.cv = TimeSeriesSplit(n_splits=n_split)
-
+        # modèle
         self.pipeline = Pipeline([
             ("scaler", StandardScaler()),
             ("enet", ElasticNetCV(
@@ -27,7 +31,6 @@ class ElasticNetExpert():
                 cv=self.cv,
                 max_iter=max_iter))
         ])
-        self.is_fitted=False
 
     def fit(self,X,y):
         X_sel = X[self.features]

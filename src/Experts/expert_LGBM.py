@@ -1,6 +1,7 @@
 from lightgbm import LGBMRegressor,early_stopping
+from src.Experts.base_expert import BaseExpert
 
-class LGBMExpert():
+class LGBMExpert(BaseExpert):
     def __init__(
         self,
         features,
@@ -13,8 +14,9 @@ class LGBMExpert():
         colsample_bytree=0.8,
         random_state=42
         ):
-
-        self.features=features
+        # initialisation de la classe mère
+        super().__init__(features,name="LGBM")
+        # paramètres spécifiques de la classe LGBM
         self.n_estimators = n_estimators
         self.learning_rate = learning_rate
         self.num_leaves = num_leaves
@@ -23,9 +25,8 @@ class LGBMExpert():
         self.subsample=subsample
         self.colsample_bytree = colsample_bytree
         self.random_state=random_state
-
+        # le modèle LGBM
         self.expert = LGBMRegressor(
-            #features=self.features,
             n_estimators = self.n_estimators,
             learning_rate = self.learning_rate,
             num_leaves = self.num_leaves, 
@@ -35,7 +36,6 @@ class LGBMExpert():
             colsample_bytree = self.colsample_bytree,
             random_state = self.random_state
         )
-        self.is_fitted=False
 
     def fit(self,X,y):
         X_sel = X[self.features]
@@ -47,4 +47,5 @@ class LGBMExpert():
         return self.expert.predict(X_sel)
     
     pass
+
 

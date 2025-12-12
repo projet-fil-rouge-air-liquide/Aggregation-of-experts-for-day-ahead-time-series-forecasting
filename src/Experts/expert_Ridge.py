@@ -5,7 +5,9 @@ from sklearn.linear_model import Ridge
 from sklearn.linear_model import RidgeCV
 from sklearn.model_selection import TimeSeriesSplit
 
-class RidgeExpert():
+from src.Experts.base_expert import BaseExpert
+
+class RidgeExpert(BaseExpert):
     def __init__(
         self,
         features,
@@ -13,17 +15,19 @@ class RidgeExpert():
         alphas = None,
         ):
 
+        # initialisation de la classe mère
+        super().__init__(features,name="Ridge")
+        # paramètres de la classe
         self.features=features
         self.alphas = alphas if alphas is not None else np.logspace(-3, 3, 50)
         self.cv = TimeSeriesSplit(n_splits=n_split)
-
+        # modèle ridge
         self.pipeline = Pipeline([
             ("scaler", StandardScaler()),
             ("ridge", RidgeCV(alphas=self.alphas,
                               scoring="neg_mean_squared_error",
                               cv=self.cv))
                               ])
-        self.is_fitted=False
 
     def fit(self,X,y):
         X_sel = X[self.features]
