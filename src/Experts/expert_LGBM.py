@@ -24,7 +24,17 @@ class LGBMExpert():
         self.colsample_bytree = colsample_bytree
         self.random_state=random_state
 
-        self.expert = LGBMRegressor()
+        self.expert = LGBMRegressor(
+            #features=self.features,
+            n_estimators = self.n_estimators,
+            learning_rate = self.learning_rate,
+            num_leaves = self.num_leaves, 
+            max_depth = self.max_depth, 
+            min_child_samples = self.min_child_samples,
+            subsample = self.subsample,
+            colsample_bytree = self.colsample_bytree,
+            random_state = self.random_state
+        )
         self.is_fitted=False
 
     def fit(self,X,y):
