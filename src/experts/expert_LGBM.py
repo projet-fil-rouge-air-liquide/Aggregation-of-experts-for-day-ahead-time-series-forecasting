@@ -1,11 +1,22 @@
 from lightgbm import LGBMRegressor,early_stopping
 from src.experts.base_expert import BaseExpert
+import pandas as pd
+import numpy as np
+import warnings
+warnings.filterwarnings("ignore")
+
+from sklearn.metrics import mean_squared_error
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
+import os
+
 
 class LGBMExpert(BaseExpert):
     def __init__(
         self,
-        features,
-        n_estimators=2500,
+        features=None,
+        n_estimators=5000,
         learning_rate=0.01,
         num_leaves=127,
         max_depth=-1,
@@ -14,8 +25,32 @@ class LGBMExpert(BaseExpert):
         colsample_bytree=0.8,
         random_state=42
         ):
-        # initialisation de la classe mère
-        super().__init__(features,name="LGBM")
+        # initialisation de la classe mère        if features is None:
+            features = [
+                "speed_longitudinale_100m", 
+                "speed_latitudinale_100m",
+                "2m_temperature", 
+                "mean_sea_level_pressure", 
+                "sea_surface_temperature",
+                "surface_pressure", 
+                "Wind_Norm", 
+                "Wind_Norm_Cubes", 
+                "wind_std_3h",
+                "wind_cv_3h", 
+                "Wind_Norm_lag_1h", 
+                "Wind_Norm_lag_24h",
+                "Hour_sin",
+                "Hour_cos",
+                "Weekday_sin",
+                "Weekday_cos",
+                "Month_sin",
+                "Month_cos",
+                "P_curve",
+                "Wind_mean_3h",
+                "Air_density",
+                "Wind_Dir_Meteo_sin",
+                "Wind_Dir_Meteo_cos"
+            ]
         # paramètres spécifiques de la classe LGBM
         self.n_estimators = n_estimators
         self.learning_rate = learning_rate
@@ -47,5 +82,4 @@ class LGBMExpert(BaseExpert):
         return self.expert.predict(X_sel)
     
     pass
-
 
