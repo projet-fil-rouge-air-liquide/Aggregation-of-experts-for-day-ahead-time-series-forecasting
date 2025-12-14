@@ -17,4 +17,11 @@ Thumbs.db
 Documentation/
 opera-python/
 
+#__pycache__/
+__pycache__/
+*.pyc
+
+# Archive
+Archives/
+
 
