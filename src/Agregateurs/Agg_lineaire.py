@@ -11,9 +11,9 @@ from src.config.features import FEATURES_EN, FEATURES_RIDGE, FEATURES_LGBM
 from src.config.data_train_valid_test import X_train,X_valid,X_test,y_train,y_valid,y_test 
 from utils.fonction import fit_predict_eval,rmse,predict,fit
 
-from src.Experts.expert_ElasticNet import ElasticNetExpert
-from src.Experts.expert_LGBM import LGBMExpert
-from src.Experts.expert_Ridge import RidgeExpert
+from src.experts.expert_ElasticNet import ElasticNetExpert
+from src.experts.expert_LGBM import LGBMExpert
+from src.experts.expert_Ridge import RidgeExpert
 
 # créer Experts
 expert_EN = ElasticNetExpert(features=FEATURES_EN)

@@ -4,7 +4,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import ElasticNetCV
 from sklearn.model_selection import TimeSeriesSplit
 
-from src.Experts.base_expert import BaseExpert
+from src.experts.base_expert import BaseExpert
 
 
 class ElasticNetExpert(BaseExpert):

@@ -5,7 +5,7 @@ from sklearn.linear_model import Ridge
 from sklearn.linear_model import RidgeCV
 from sklearn.model_selection import TimeSeriesSplit
 
-from src.Experts.base_expert import BaseExpert
+from src.experts.base_expert import BaseExpert
 
 class RidgeExpert(BaseExpert):
     def __init__(

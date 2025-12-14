@@ -1,5 +1,5 @@
 from lightgbm import LGBMRegressor,early_stopping
-from src.Experts.base_expert import BaseExpert
+from src.experts.base_expert import BaseExpert
 
 class LGBMExpert(BaseExpert):
     def __init__(
