@@ -8,8 +8,6 @@ def fit_predict_eval(expert,X_train,X_test,y_train,y_test):
     y_pred = expert.predict(X_test)
     rmse = np.sqrt(mean_squared_error(y_test, y_pred))
 
-    print("Expert - RMSE :", rmse)
-
     return y_pred,rmse
 
 def fit(expert,X_train,y_train):
