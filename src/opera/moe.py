@@ -52,14 +52,14 @@ df_last24 = pd.read_csv("Data/Experts/pred_24h.csv")
 
 df_last24["Date_Heure"] = pd.to_datetime(df_last24["Date_Heure"])
 
-for col in ["y_true", "ridge", "lgbm", "elasticnet"]:
+for col in ["y_true", "randomforest", "lgbm", "elasticnet"]:
     df_last24[col] = pd.to_numeric(df_last24[col], errors="coerce")
 
 # plot
 plt.figure(figsize=(14,6))
 
 plt.plot(df_last24["Date_Heure"], df_last24["y_true"], label="y_true", linewidth=2)
-plt.plot(df_last24["Date_Heure"], df_last24["ridge"], label="ridge", alpha=0.6)
+plt.plot(df_last24["Date_Heure"], df_last24["randomforest"], label="randomforest", alpha=0.6)
 plt.plot(df_last24["Date_Heure"], df_last24["lgbm"], label="lgbm", alpha=0.6)
 plt.plot(df_last24["Date_Heure"], df_last24["elasticnet"], label="elasticnet", alpha=0.6)
 

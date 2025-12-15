@@ -35,7 +35,6 @@ class ElasticNetExpert():
                 "Weekday_cos",
                 "Month_sin",
                 "Month_cos",
-                #"P_curve",
                 "Wind_mean_3h",
                 "Air_density",
                 "Wind_Dir_Meteo_sin",
