@@ -1,27 +1,39 @@
-# Projet : Aggregation of Experts for Day-Ahead Time Series Forecasting
+# 📊 Aggregation of Experts for Day-Ahead Time Series Forecasting
 
-Projet réalisé dans le cadre du Projet Fil Rouge des MS IA et Data de Telecom Paris
+Projet réalisé dans le cadre du **Projet Fil Rouge** des **Mastères Spécialisés IA et Data** de **Télécom Paris**.
 
----
-
-## Contributeurs
-
-- Alexandre Donnat
-- Ambroise Laroye
-- Héloïse Lordez
-- Oscar De La Cruz
-- William Jan
+Ce projet vise à mettre en œuvre et comparer plusieurs modèles experts de prévision de séries temporelles à horizon J+1, puis à les agréger à l’aide d’une approche de **Mixture of Experts (MOE)**.
 
 ---
 
-## Chargement des données
+## 👥 Contributeurs
 
-### 1. Données Météo (ERA5)
+* Alexandre Donnat
+* Ambroise Laroye
+* Héloïse Lordez
+* Oscar De La Cruz
+* William Jan
 
-Les données météorologiques doivent être chargées en premier.  
-Elles nécessitent un compte personnel sur la plateforme ERA5.
+---
 
-Étapes pour récupérer les données ERA5 :
+## 📁 Structure générale du projet
+
+* `src/Experts/` : construction et prédiction des modèles experts
+* `src/opera/` : implémentation de la méthode d’agrégation (MOE)
+* `src/Data_cleaning.py` : récupération et nettoyage des données
+* `API_ERA5.py` : script de téléchargement des données météorologiques
+* `data/` : stockage des jeux de données (générés automatiquement)
+
+---
+
+## 📥 Chargement des données
+
+### 1. Données météorologiques (ERA5)
+
+Les données météorologiques doivent être chargées **en premier**.
+Elles nécessitent un compte personnel sur la plateforme **Copernicus ERA5**.
+
+#### Étapes à suivre :
 
 1. Créer un compte :  
    https://cds.climate.copernicus.eu  
