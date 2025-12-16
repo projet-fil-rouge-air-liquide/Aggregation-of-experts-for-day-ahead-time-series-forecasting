@@ -1,4 +1,4 @@
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error,mean_absolute_error
 import numpy as np
 import seaborn as sns
 
@@ -6,7 +6,7 @@ import seaborn as sns
 def fit_predict_eval(expert,X_train,X_test,y_train,y_test):
     expert.fit(X_train,y_train)
     y_pred = expert.predict(X_test)
-    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+    rmse = np.sqrt(mean_absolute_error(y_test, y_pred))
 
     return y_pred,rmse
 

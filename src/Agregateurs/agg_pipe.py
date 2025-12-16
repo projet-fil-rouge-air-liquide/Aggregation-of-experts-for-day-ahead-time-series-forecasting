@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
+from sklearn.metrics import mean_absolute_error
 
 from utils.fonction import fit_predict_eval
 
@@ -12,7 +13,7 @@ from src.agregateurs.agg_lin import AGG_LIN
 
 # création /entrainement des experts
 experts = [expert_ElasticNet.ElasticNetExpert(FEATURES_EN),
-           expert_LGBM.LGBMExpert(FEATURES_LGBM),
+           #expert_LGBM.LGBMExpert(FEATURES_LGBM),
            expert_Ridge.RidgeExpert(FEATURES_RIDGE),
            expert_RandomForest.RandomForestExpert(FEATURES_RDMFOREST)
            ]
@@ -24,7 +25,7 @@ for exp in experts:
     mse_exp.append(mse_e)
 
 for i in mse_exp:
-    print(i)
+    print("Valeur de MAE:",i)
 
 # création des variable de l'agrégateur
 X_train_agg =[]
@@ -48,6 +49,7 @@ intercept_real = model.intercept_ - np.sum(coef_std * scaler.mean_ / scaler.scal
 
 print("coef_real:",coef_real)
 print("intercept_real:",intercept_real)
+print("MAE de l'agg linéaire",rmse_agg)
 
 
 index = pd.date_range(start='2025-11-11 00:00', end='2025-11-23 00:00', freq='H')
@@ -92,12 +94,29 @@ min_val = min(min(y_test), min(y_pred_agg))
 plt.plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=1.5)
 
 coef = np.polyfit(y_test, y_pred_agg, 1)
+mae = mean_absolute_error(y_test,y_pred_agg)
 poly = np.poly1d(coef)
 plt.plot(y_test, poly(y_test), color="orange", linewidth=2)
+# plt.plot(
+#     [min_val, max_val], 
+#     [min_val + mae, max_val + mae], 
+#     color="black", 
+#     linestyle=':', 
+#     linewidth=1.5, 
+#     label=f"+/- MAE ({mae:.2f})"
+# )
+# plt.plot(
+#     [min_val, max_val], 
+#     [min_val - mae, max_val - mae], 
+#     color="black", 
+#     linestyle=':', 
+#     linewidth=1.5
+# )
+
 
 plt.xlabel("Valeurs réelles (MW)")
 plt.ylabel("Valeurs prédites (MW)")
-plt.title("Réel vs Prédit — EN")
+plt.title("Réel vs Prédit — AGG Linéaire")
 
 plt.tight_layout()
 plt.show()
