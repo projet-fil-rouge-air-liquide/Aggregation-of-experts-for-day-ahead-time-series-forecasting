@@ -81,3 +81,31 @@ FEATURES_RIDGE = [
     # "Wind_Dir_Meteo_sin",
     # "Wind_Dir_Meteo_cos"
 ]
+
+FEATURES_RDMFOREST = [
+    "speed_longitudinale_10m",
+    "speed_latitudinale_10m",
+    "2m_temperature",
+    "mean_sea_level_pressure",
+    "sea_surface_temperature",
+    "surface_pressure",
+    "Wind_Norm",
+    "Wind_Norm_Cubes",
+    "wind_std_3h",
+    "wind_cv_3h",
+    #"Y_lag_1h",
+    #"Y_lag_24h",
+    #"Wind_Norm_lag_1h",
+    #"Wind_Norm_lag_24h",
+    "Hour_sin",
+    "Hour_cos",
+    "Weekday_sin",
+    "Weekday_cos",
+    "Month_sin",
+    "Month_cos",
+    "P_curve",
+    "Wind_mean_3h",
+    "Air_density",
+    "Wind_Dir_Meteo_sin",
+    "Wind_Dir_Meteo_cos"
+]

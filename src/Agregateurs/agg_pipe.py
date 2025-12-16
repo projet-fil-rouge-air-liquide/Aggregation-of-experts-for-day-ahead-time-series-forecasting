@@ -6,14 +6,16 @@ from matplotlib.colors import LogNorm
 from utils.fonction import fit_predict_eval
 
 from src.config.data_train_valid_test import X_train,X_valid,X_test,y_train,y_valid,y_test
-from src.config.features import FEATURES_EN,FEATURES_LGBM,FEATURES_RIDGE
-from src.experts import expert_ElasticNet,expert_LGBM,expert_Ridge
+from src.config.features import FEATURES_EN,FEATURES_LGBM,FEATURES_RIDGE,FEATURES_RDMFOREST
+from src.experts import expert_ElasticNet,expert_LGBM,expert_Ridge,expert_RandomForest
 from src.agregateurs.agg_lin import AGG_LIN
 
 # création /entrainement des experts
 experts = [expert_ElasticNet.ElasticNetExpert(FEATURES_EN),
            expert_LGBM.LGBMExpert(FEATURES_LGBM),
-           expert_Ridge.RidgeExpert(FEATURES_RIDGE)]
+           expert_Ridge.RidgeExpert(FEATURES_RIDGE),
+           expert_RandomForest.RandomForestExpert(FEATURES_RDMFOREST)
+           ]
 y_pred_exp = []
 mse_exp = []
 for exp in experts:
