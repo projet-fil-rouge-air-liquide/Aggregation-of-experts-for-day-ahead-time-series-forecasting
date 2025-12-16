@@ -5,7 +5,7 @@ class LGBMExpert(BaseExpert):
     def __init__(
         self,
         features,
-        n_estimators=5000,
+        n_estimators=2500,
         learning_rate=0.01,
         num_leaves=127,
         max_depth=-1,
