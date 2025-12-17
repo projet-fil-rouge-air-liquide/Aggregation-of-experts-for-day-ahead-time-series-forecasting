@@ -26,7 +26,7 @@ Elles nécessitent un compte personnel sur la plateforme ERA5.
 1. Créer un compte :  
    https://cds.climate.copernicus.eu  
 2. Générer une API key personnelle 
-3. Exécuter le script météo : API_ERA5.py
+3. Exécuter le script météo : API_ERA5.py dans config/API
 
 
 ### 2. Données ELIA
