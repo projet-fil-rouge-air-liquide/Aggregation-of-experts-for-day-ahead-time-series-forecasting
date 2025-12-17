@@ -13,7 +13,7 @@ from src.agregateurs.agg_lin import AGG_LIN
 
 # création /entrainement des experts
 experts = [expert_ElasticNet.ElasticNetExpert(FEATURES_EN),
-           #expert_LGBM.LGBMExpert(FEATURES_LGBM),
+           expert_LGBM.LGBMExpert(FEATURES_LGBM),
            expert_Ridge.RidgeExpert(FEATURES_RIDGE),
            expert_RandomForest.RandomForestExpert(FEATURES_RDMFOREST)
            ]
@@ -97,21 +97,6 @@ coef = np.polyfit(y_test, y_pred_agg, 1)
 mae = mean_absolute_error(y_test,y_pred_agg)
 poly = np.poly1d(coef)
 plt.plot(y_test, poly(y_test), color="orange", linewidth=2)
-# plt.plot(
-#     [min_val, max_val], 
-#     [min_val + mae, max_val + mae], 
-#     color="black", 
-#     linestyle=':', 
-#     linewidth=1.5, 
-#     label=f"+/- MAE ({mae:.2f})"
-# )
-# plt.plot(
-#     [min_val, max_val], 
-#     [min_val - mae, max_val - mae], 
-#     color="black", 
-#     linestyle=':', 
-#     linewidth=1.5
-# )
 
 
 plt.xlabel("Valeurs réelles (MW)")
