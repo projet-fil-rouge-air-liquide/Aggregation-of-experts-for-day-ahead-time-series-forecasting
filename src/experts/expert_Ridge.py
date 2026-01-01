@@ -12,6 +12,7 @@ class RidgeExpert(BaseExpert):
         self,
         features,
         n_split=5,
+        features_name = "unknow",
         alphas = None,
         ):
 
@@ -21,6 +22,7 @@ class RidgeExpert(BaseExpert):
         self.features=features
         self.alphas = alphas if alphas is not None else np.logspace(-3, 3, 50)
         self.cv = TimeSeriesSplit(n_splits=n_split)
+        self.features_name = features_name
         # modèle ridge
         self.pipeline = Pipeline([
             ("scaler", StandardScaler()),

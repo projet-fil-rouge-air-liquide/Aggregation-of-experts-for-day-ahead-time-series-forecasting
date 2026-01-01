@@ -10,6 +10,7 @@ class RandomForestExpert(BaseExpert):
         features,
         n_estimators=600,
         max_depth=15,
+        features_name="unknow",
         min_samples_split=10,
         min_samples_leaf=20,
         max_features=0.5,
@@ -25,6 +26,7 @@ class RandomForestExpert(BaseExpert):
         self.min_samples_split=min_samples_split
         self.min_samples_leaf=min_samples_leaf
         self.max_features=max_features
+        self.features_name = features_name
         self.bootstrap=bootstrap
         self.random_state=random_state
         self.n_jobs=n_jobs

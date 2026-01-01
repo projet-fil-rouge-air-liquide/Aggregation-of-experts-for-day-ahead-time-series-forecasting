@@ -5,9 +5,10 @@ class LGBMExpert(BaseExpert):
     def __init__(
         self,
         features,
-        n_estimators=2500,
-        learning_rate=0.01,
-        num_leaves=127,
+        n_estimators=2000,
+        learning_rate=0.05,
+        features_name = "unknow",
+        num_leaves=63,
         max_depth=-1,
         min_child_samples=20,
         subsample=0.8,
@@ -21,6 +22,7 @@ class LGBMExpert(BaseExpert):
         self.learning_rate = learning_rate
         self.num_leaves = num_leaves
         self.max_depth = max_depth
+        self.features_name = features_name
         self.min_child_samples = min_child_samples
         self.subsample=subsample
         self.colsample_bytree = colsample_bytree
@@ -39,7 +41,10 @@ class LGBMExpert(BaseExpert):
 
     def fit(self,X,y):
         X_sel = X[self.features]
-        self.expert.fit(X_sel,y)
+        self.expert.fit(X_sel,
+                        y,
+                        callbacks=[early_stopping(stopping_rounds=50)] # S'arrête si ça ne progresse plus
+        )
         self.is_fitted = True
 
     def predict(self,X):

@@ -11,6 +11,7 @@ class ElasticNetExpert(BaseExpert):
     def __init__(
         self,
         features,
+        features_name="unknow",
         n_split=5,
         alphas = None,
         max_iter = 10000,
@@ -22,6 +23,7 @@ class ElasticNetExpert(BaseExpert):
         self.alphas = alphas if alphas is not None else np.logspace(-3, 3, 50)
         self.l1_ratios = l1_ratios if l1_ratios is not None else np.linspace(0.1, 1.0, 10)
         self.cv = TimeSeriesSplit(n_splits=n_split)
+        self.features_name = features_name
         # modèle
         self.pipeline = Pipeline([
             ("scaler", StandardScaler()),
