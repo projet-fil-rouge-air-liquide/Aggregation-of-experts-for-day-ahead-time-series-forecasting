@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 from hmmlearn.hmm import GaussianHMM
+from sklearn.preprocessing import StandardScaler
 
 from src.opera.mixture import Mixture
 from src.opera.mixture import HierarchicalHorizonOPERA, RegimeGate
@@ -17,11 +18,15 @@ from src.opera.mixture import HierarchicalHorizonOPERA, RegimeGate
 targets = pd.read_csv("data/experts/experts.csv", usecols=[1]).squeeze()
 experts = pd.read_csv("data/experts/experts.csv", usecols=[2, 3, 4])
 
+
+df_last24 = pd.read_csv("data/experts/pred_24h.csv")
+df_last24["Date_Heure"] = pd.to_datetime(df_last24["Date_Heure"])
+
 # Features pour le gate de régime
 regime_features = pd.read_csv("data/regime_features.csv")
 
 N = len(targets)
-horizons = list(range(1, 49))
+horizons = list(range(1, 25)) # toutes les heures jusqu'à +24h
 
 # =========================
 # DÉTECTION DES RÉGIMES (HMM)
@@ -35,7 +40,6 @@ df_hmm = pd.DataFrame({
     "vol": returns.rolling(24).std()
 }).dropna()
 
-from sklearn.preprocessing import StandardScaler
 scaler = StandardScaler()
 X = scaler.fit_transform(df_hmm.values)
 
@@ -116,42 +120,107 @@ for t in tqdm(range(N_train), desc="Opera learning"):
         regime_label=regime_labels[t]
     )
 
+
+# =========================
+# DEBUG GATE (PRÉDICTION)
+# =========================
+
+x_gate = regime_features.iloc[-1].values
+p_regime = hmod.regime_gate.predict(x_gate)
+
+print("\n=== REGIME GATE (prediction time) ===")
+for i, r in enumerate(hmod.regimes):
+    print(f"P({r}) = {p_regime[i]:.3f}")
+
+print("Régime dominant :", hmod.regimes[np.argmax(p_regime)])
+
+
 # =========================
 # PRÉDICTION 24H
 # =========================
 
-new_experts = pd.read_csv(
-    "data/experts/pred_24h.csv",
-    usecols=[2, 3, 4]
-)
+new_experts = df_last24.iloc[:, 2:5]
+
+
+# DEBUG PRÉDICTIONS PAR RÉGIME
+print("\n=== PRÉDICTIONS PAR RÉGIME (h=24) ===")
+
+y_hat_regimes = {}
+
+for i, r in enumerate(hmod.regimes):
+    X_24 = new_experts.iloc[[0]]  # ou la ligne correspondant à t+24
+    y_hat_r = hmod.opera[r][24].predict(X_24).item()
+    y_hat_regimes[r] = y_hat_r
+    print(f"{r:4s} | ŷ_24 = {float(y_hat_r):.4f}")
+
+# plot bull vs bear
+plt.figure(figsize=(15, 6))
+for r in hmod.regimes:
+    plt.plot(
+        df_last24["Date_Heure"],
+        [y_hat_regimes[r]] * len(df_last24),
+        label=f"OPERA {r}",
+        linewidth=2
+    )
+
+
+plt.legend()
+plt.grid(alpha=0.3)
+plt.title("Prédictions OPERA par régime (24h)")
+plt.show()
+
 
 expert_preds = {
-    h: new_experts
-    for h in horizons
+    h: new_experts.iloc[[h-1]]   # h=1 → ligne 0, h=24 → ligne 23
+    for h in range(1, 25)
 }
 
-y_pred_24h = hmod.predict(
+y_pred_all = hmod.predict(
     expert_preds=expert_preds,
     regime_features=regime_features.iloc[-1].values
-)[24]
+)
+
+print("\n=== COMBINAISON FINALE (h=24) ===")
+
+y_hat_final = 0.0
+for i, r in enumerate(hmod.regimes):
+    contrib = p_regime[i] * y_hat_regimes[r]
+    y_hat_final += contrib
+    print(
+        f"{r:4s} | p={p_regime[i]:.3f} "
+        f"| contrib={float(contrib):.4f}"
+    )
+
+print(f"\nŷ_final_24h = {float(y_hat_final):.4f}")
 
 # =========================
-# POIDS OPERA (DEBUG)
+# POIDS OPERA
 # =========================
 
-print("\nPoids OPERA par régime et horizon :\n")
+print("\n=== POIDS OPERA (internes, par régime et horizon) ===")
 
 for r in hmod.regimes:
-    for h in [1, 12, 24, 48]:
+    print(f"\nRégime: {r}")
+    for h in [1, 8, 16, 24]:
         w = hmod.opera[r][h].w
-        print(f"{r} | h={h} | w={np.round(w, 3)}")
+        print(f"  h={h:2d} | w={np.round(w, 3)}")
+
+
+print("\n=== POIDS EFFECTIFS PAR EXPERT (h=24) ===")
+
+w_eff = np.zeros(len(experts.columns))
+
+for i, r in enumerate(hmod.regimes):
+    w_r = hmod.opera[r][24].w
+    w_eff += p_regime[i] * w_r
+
+for name, w in zip(experts.columns, w_eff):
+    print(f"{name:15s} | w_eff = {w:.3f}")
+
 
 # =========================
 # PLOT PRÉDICTION VS VÉRITÉ + EXPERTS
 # =========================
-
-df_last24 = pd.read_csv("data/experts/pred_24h.csv")
-df_last24["Date_Heure"] = pd.to_datetime(df_last24["Date_Heure"])
 
 # sécurité
 for col in ["y_true", "randomforest", "lgbm", "elasticnet"]:
@@ -194,9 +263,10 @@ plt.plot(
 )
 
 # OPERA
+y_pred_curve = [float(y_pred_all[h]) for h in range(1, 25)]
 plt.plot(
     df_last24["Date_Heure"],
-    y_pred_24h,
+    y_pred_curve,
     label="OPERA hiérarchique",
     color="red",
     linewidth=2.5

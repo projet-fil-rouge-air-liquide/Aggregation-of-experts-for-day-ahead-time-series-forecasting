@@ -613,6 +613,7 @@ class Mixture:
         self.model = model
         self.loss_gradient = loss_gradient
         self.gradient_to_call = getattr(self, "r_by_hand")
+        self.sample_weights = np.array([])
 
         if not isinstance(experts, pd.DataFrame):
             raise (TypeError("Experts must be a pandas dataframe"))
@@ -786,7 +787,7 @@ class Mixture:
             awake = awake.to_numpy()
         return awake
 
-    def update(self, new_experts, new_y, awake=None):
+    def update(self, new_experts, new_y, awake=None, weight=1.0):
         """updates the model sequentially with new experts and new targets
 
         Args:
@@ -795,6 +796,8 @@ class Mixture:
             awake (numpy.array or pandas.Dataframe, optional): an array specifying the activation coefficients
                 of the experts. It must have the same dimension as experts. Defaults to None.
         """
+        self.sample_weights = np.append(self.sample_weights, weight)
+
         new_experts = self.check_columns(new_experts)
         awake = self.check_awake(awake, new_experts)
         if not isinstance(new_experts, np.ndarray):
@@ -809,10 +812,14 @@ class Mixture:
             awake = awake.to_numpy()
         if x.shape[:-1] != y.shape:
             raise ValueError("Bad dimensions: x and y should have the same shape")
+        
+        weight = float(weight)
         for index, value in enumerate(y):
             xt = x[index]
             yt = np.expand_dims(value, -1)
-            y_hat, updates = self.predict_at_t(xt, yt, awake=awake[index, :])
+            y_hat, updates = self.predict_at_t(
+                xt, yt, awake=awake[index, :], weight=weight
+            )
             self.predictions = np.append(self.predictions, y_hat)
             self.weights = np.vstack((self.weights, updates.get("weights")))
             self.experts = np.vstack((self.experts, xt))
@@ -822,7 +829,7 @@ class Mixture:
         self.loss = np.mean(self.loss_function(self.predictions, self.targets))
         self.update_coefficient()
 
-    def predict_at_t_BOA(self, x, y, awake=None):
+    def predict_at_t_BOA(self, x, y, awake=None, weigth=1.0):
         """predicts at time t using BOA."""
         idx = awake > 0
         Raux = (
@@ -835,6 +842,7 @@ class Mixture:
         self.w[idx] = np.exp(Raux[idx] - Rmax)
         self.w = normalize(self.w)
         y_hat, r = self.gradient_to_call(x, y, awake=awake)
+        r *= weight
         r_square = np.square(r)
         self.max_losses = np.maximum(self.max_losses, np.abs(r))  # 64
         B2 = np.power(2, np.ceil(np.log2(self.max_losses)))
@@ -962,9 +970,9 @@ class Mixture:
         self.w = np.divide(self.w, np.sum(self.w, axis=-1, keepdims=True))
         self.w = normalize(self.w)
 
-    def predict_at_t_FTRL(self, x, y, awake=None):
+    def predict_at_t_FTRL(self, x, y, awake=None, weight=1.0):
         y_hat = np.sum(self.weights[-1] * x)
-        G_t = self.loss_type(y_hat, y) * x
+        G_t = weight * self.loss_type(y_hat, y) * x
         self.G = self.G + G_t
         if self.default_eta:
             self.eta = 1 / np.sqrt(1 / np.square(self.eta) + np.sum(np.square(G_t)))
@@ -1236,20 +1244,24 @@ class RegimeGate:
     def predict(self, x):
         """
         x: np.array (n_features,)
+        return : p_regime = [P(bull | x), P(bear | x)]
         """
         if self.W is None:
             self._init(len(x))
         logits = x @ self.W
         logits -= logits.max()
-        exp = np.exp(logits)
-        return exp / exp.sum()
+        exp = np.exp(logits / 2.0)
+        p = exp / exp.sum()
+        eps = 0.05
+        return eps / self.n_regimes + (1 - eps) * p
 
     def update(self, x, losses):
         """
         losses: np.array (n_regimes,)
         """
         p = self.predict(x)
-        grad = np.outer(x, losses - losses.mean())
+        baseline = np.sum(p * losses)
+        grad = np.outer(x, (losses - baseline))
         self.W -= self.lr * grad
 
 class HorizonGate:
@@ -1318,40 +1330,38 @@ class HierarchicalHorizonOPERA:
 
     def update(self, expert_preds, y_true, regime_features, regime_label):
         """
+        Update compatible Mixture.update():
+
+        - OPERA : hard update (spécialisation par régime)
+        - RegimeGate : soft update basé sur la performance réelle
+
         regime_label : int (0 = bull, 1 = bear)
         """
+
+        # Gate forward
         p_regime = self.regime_gate.predict(regime_features)
-        regime_losses = np.zeros(len(self.regimes))
+        n_regimes = len(self.regimes)
+        regime_losses = np.zeros(n_regimes)
+
+        dominant = np.argmax(p_regime)
 
         for i, r in enumerate(self.regimes):
             loss_r = 0.0
 
             for h in self.horizons:
-                X_h = expert_preds[h]        # DataFrame (1, n_experts)
+                X_h = expert_preds[h]
                 y_h = np.array([y_true[h]])
 
-                n_experts = X_h.shape[1]
+                # prédiction courante
+                y_hat = self.opera[r][h].predict(X_h)
+                loss_r += float((y_hat - y_h) ** 2)
 
-                # AWAKE CORRECT : (1, n_experts)
-                awake = np.zeros((1, n_experts))
-                if i == regime_label:
-                    awake[:] = 1.0
-
-                # Update OPERA
-                # self.opera[r][h].update(
-                #     X_h,
-                #     y_h,
-                #     awake=awake
-                # )
-                if i == regime_label:
+                # UPDATE OPERA : HARD
+                if i == dominant:
                     self.opera[r][h].update(X_h, y_h)
 
+            regime_losses[i] = loss_r / len(self.horizons)
 
-                # Loss pour le gate
-                y_hat = self.opera[r][h].predict(X_h)
-                loss_r += (y_hat - y_h) ** 2
-
-            regime_losses[i] = loss_r
-
-        # Update du gate de régime
+        # UPDATE GATE : SOFT
         self.regime_gate.update(regime_features, regime_losses)
+
