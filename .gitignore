@@ -5,7 +5,7 @@
 /env_expert
 
 # Data
-Data/
+data/
 
 # Système
 .DS_Store
@@ -14,9 +14,6 @@ Thumbs.db
 # Cache
 .cache/
 __pycache__/
-# Documentation
-Documentation/
-opera-python/
 
 #__pycache__/
 __pycache__/

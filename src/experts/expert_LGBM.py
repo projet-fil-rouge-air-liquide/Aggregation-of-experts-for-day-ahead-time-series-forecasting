@@ -16,29 +16,27 @@ class LGBMExpert(BaseExpert):
     def __init__(
         self,
         features=None,
-        n_estimators=5000,
-        learning_rate=0.01,
-        num_leaves=127,
-        max_depth=-1,
-        min_child_samples=20,
+        alpha=0.65,
+        n_estimators=600,
+        learning_rate=0.05,
+        num_leaves=31,
+        max_depth=10,
+        min_child_samples=30,
         subsample=0.8,
         colsample_bytree=0.8,
         random_state=42
-        ):
-        # initialisation de la classe mère        if features is None:
+    ):
+        if features is None:
             features = [
                 "speed_longitudinale_100m",
                 "speed_latitudinale_100m",
                 "2m_temperature",
-                "mean_sea_level_pressure",
                 "sea_surface_temperature",
                 "surface_pressure",
                 "Wind_Norm",
                 "Wind_Norm_Cubes",
                 "wind_std_3h",
                 "wind_cv_3h",
-                "Y_lag_1h",
-                "Y_lag_24h",
                 "Wind_Norm_lag_1h",
                 "Wind_Norm_lag_24h",
                 "Hour_sin",
@@ -52,35 +50,39 @@ class LGBMExpert(BaseExpert):
                 "Wind_Dir_Meteo_sin",
                 "Wind_Dir_Meteo_cos"
             ]
-        # paramètres spécifiques de la classe LGBM
-        self.n_estimators = n_estimators
-        self.learning_rate = learning_rate
-        self.num_leaves = num_leaves
-        self.max_depth = max_depth
-        self.min_child_samples = min_child_samples
-        self.subsample=subsample
-        self.colsample_bytree = colsample_bytree
-        self.random_state=random_state
-        # le modèle LGBM
-        self.expert = LGBMRegressor(
-            n_estimators = self.n_estimators,
-            learning_rate = self.learning_rate,
-            num_leaves = self.num_leaves, 
-            max_depth = self.max_depth, 
-            min_child_samples = self.min_child_samples,
-            subsample = self.subsample,
-            colsample_bytree = self.colsample_bytree,
-            random_state = self.random_state
+        self.features = features
+        self.alpha = alpha
+
+        self.model = LGBMRegressor(
+            objective="quantile",
+            alpha=self.alpha,
+            n_estimators=n_estimators,
+            learning_rate=learning_rate,
+            num_leaves=num_leaves,
+            max_depth=max_depth,
+            min_child_samples=min_child_samples,
+            subsample=subsample,
+            colsample_bytree=colsample_bytree,
+            random_state=random_state,
+            n_jobs=-1
         )
 
-    def fit(self,X,y):
+        self.is_fitted = False
+
+    # ---------------------
+    # Fit avec log(target)
+    # ---------------------
+    def fit(self, X, y):
         X_sel = X[self.features]
-        self.expert.fit(X_sel,y)
+        y_log = np.log1p(y)
+        self.model.fit(X_sel, y_log)
         self.is_fitted = True
 
-    def predict(self,X):
+    # ---------------------
+    # Predict + inverse log
+    # ---------------------
+    def predict(self, X):
         X_sel = X[self.features]
-        return self.expert.predict(X_sel)
-    
-    pass
+        y_log_pred = self.model.predict(X_sel)
+        return np.expm1(y_log_pred)
 

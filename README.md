@@ -2,7 +2,7 @@
 
 Projet réalisé dans le cadre du **Projet Fil Rouge** des **Mastères Spécialisés IA et Data** de **Télécom Paris**.
 
-Ce projet vise à mettre en œuvre et comparer plusieurs modèles experts de prévision de séries temporelles à horizon J+1, puis à les agréger à l’aide d’une approche de **Mixture of Experts (MOE)**.
+Ce projet vise à mettre en œuvre et comparer plusieurs modèles experts. de prévision de séries temporelles à horizon J+1, puis à les agréger à l’aide d’une approche de **Mixture of Experts (MOE)**.
 
 ---
 
@@ -18,9 +18,9 @@ Ce projet vise à mettre en œuvre et comparer plusieurs modèles experts de pr�
 
 ## 📁 Structure générale du projet
 
-* `src/Experts/` : construction et prédiction des modèles experts
+* `src/experts/` : construction et prédiction des modèles experts
 * `src/opera/` : implémentation de la méthode d’agrégation (MOE)
-* `src/Data_cleaning.py` : récupération et nettoyage des données
+* `src/data_cleaning.py` : récupération et nettoyage des données
 * `API_ERA5.py` : script de téléchargement des données météorologiques
 * `data/` : stockage des jeux de données (générés automatiquement)
 
@@ -35,28 +35,75 @@ Elles nécessitent un compte personnel sur la plateforme **Copernicus ERA5**.
 
 #### Étapes à suivre :
 
-1. Créer un compte :  
-   https://cds.climate.copernicus.eu  
-2. Générer une API key personnelle 
-3. Exécuter le script météo : API_ERA5.py dans config/API
+1. Créer un compte sur :
+   👉 [https://cds.climate.copernicus.eu](https://cds.climate.copernicus.eu)
+2. Générer une **clé API personnelle**
+3. Lancer le script de récupération des données :
 
+   ```bash
+   python API_ERA5.py
+   ```
 
-### 2. Données ELIA
-Les données ELIA sont récupérées sur le site ELIA (fichier csv):
-https://opendata.elia.be/explore/dataset/ods086/export/
+---
 
-### 3. Traitement des données et construction des features
-Exécuter le pipe: src/data_pipe.py
-Les données traitées et les features créées - sont stockée au format csv (data_engineering_belgique.csv) dans data/processed_data.
+### 2. Données RTE
 
-### 4. Données d'entrainement - Features des experts
-- Les données d'entrainement sont stockées dans src/config/data_train_valid_test.py
-- les features associées aux classes sont stockées dans src/config/features
+Les données RTE sont **automatiquement téléchargées, extraites et renommées** lors du premier lancement du script suivant :
 
-### 5. Experts - agrégateurs
-Les experts et les agrégateurs sont créés sous forme de classes. base_expert et base_agg sont sont les classes mères des experts/agrégateurs.
-Les experts/agrégateurs sont instanciés/entrainés dans agg_pipe.py.
+```bash
+python src/data_cleaning.py
+```
 
-### 6. Fonctionnement du repository & Workflow Git
-Chaque contributeur possède des droits de lecture et d'écriture sur le repository.
-Il est recommandé de créer une branche personnelle DevOps après avoir cloné la branche main.
+👉 Aucun téléchargement manuel n’est requis.
+
+---
+
+## 🔧 Fonctionnement du repository & Workflow Git
+
+* Chaque contributeur dispose de droits de lecture et d’écriture sur le repository.
+* Il est fortement recommandé de :
+
+  * Cloner la branche `main`
+  * Créer une branche personnelle de développement (`dev/<prenom>` ou équivalent)
+  * Effectuer les pull requests vers `main` une fois les fonctionnalités validées
+
+---
+
+## ⚙️ Exécution du projet
+
+### 1. Construction des modèles experts
+
+```bash
+python -m src.experts.build_experts
+```
+
+**Sorties :**
+
+* `expert.csv` : prédictions des experts
+* Graphique de comparaison *Expert vs Vérité terrain*
+
+---
+
+### 2. Prédictions à 24h
+
+```bash
+python -m src.expertsprediction_for_24h
+```
+
+**Sortie :**
+
+* `pred_24h.csv` : prédictions à J+1 des experts
+
+---
+
+### 3. Agrégation des experts (MOE)
+
+```bash
+python -m src.opera.moe
+```
+
+**Sorties :**
+
+* Graphique des **poids attribués aux experts**
+* Comparaison **Experts vs MOE vs Vérité terrain** sur 24h
+

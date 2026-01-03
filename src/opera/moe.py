@@ -3,9 +3,9 @@ from src.opera.mixture import Mixture
 import numpy as np
 import matplotlib.pyplot as plt
 
-targets = pd.read_csv("Data/Experts/experts.csv", usecols=[1]) 
+targets = pd.read_csv("data/experts/experts.csv", usecols=[1]) 
 targets = targets.squeeze()
-experts = pd.read_csv("Data/Experts/experts.csv", usecols=[2, 3, 4])  
+experts = pd.read_csv("data/experts/experts.csv", usecols=[2, 3, 4])  
 
 # model = "BOA"
 # model = "MLpol"
@@ -36,7 +36,7 @@ mod_1 = Mixture(
 mod_1.plot_mixture()
 mod_1.plot_mixture(plot_type="plot_weight")
 
-new_experts = pd.read_csv("Data/Experts/pred_24h.csv", usecols=[2, 3, 4])
+new_experts = pd.read_csv("data/experts/pred_24h.csv", usecols=[2, 3, 4])
 y_pred_24h = mod_1.predict(new_experts)
 
 print("Prédiction au temps t+1 :", y_pred_24h)
@@ -48,7 +48,7 @@ print("\nSomme des poids :", mod_1.w.sum())
 
 
 # plot pred vs GT
-df_last24 = pd.read_csv("Data/Experts/pred_24h.csv")
+df_last24 = pd.read_csv("data/experts/pred_24h.csv")
 
 df_last24["Date_Heure"] = pd.to_datetime(df_last24["Date_Heure"])
 
