@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.optimize import minimize
 
+from tqdm import tqdm
+
 # Losses
 def mape(x, y):
     return np.abs(x - y) / y
@@ -1221,3 +1223,135 @@ class Mixture:
         else:
             raise (NotImplementedError(f"{plot_type} plot not implemented yet."))
         plt.show()
+
+class RegimeGate:
+    def __init__(self, n_regimes, lr=0.01):
+        self.n_regimes = n_regimes
+        self.lr = lr
+        self.W = None  # lazy init
+
+    def _init(self, n_features):
+        self.W = np.zeros((n_features, self.n_regimes))
+
+    def predict(self, x):
+        """
+        x: np.array (n_features,)
+        """
+        if self.W is None:
+            self._init(len(x))
+        logits = x @ self.W
+        logits -= logits.max()
+        exp = np.exp(logits)
+        return exp / exp.sum()
+
+    def update(self, x, losses):
+        """
+        losses: np.array (n_regimes,)
+        """
+        p = self.predict(x)
+        grad = np.outer(x, losses - losses.mean())
+        self.W -= self.lr * grad
+
+class HorizonGate:
+    def __init__(self, max_horizon, lr=0.05):
+        self.max_horizon = max_horizon
+        self.lr = lr
+        self.W = np.zeros((max_horizon,))
+
+    def predict(self, h):
+        """
+        h: horizon index (1 ... max_horizon)
+        """
+        return np.exp(self.W[h-1]) / np.exp(self.W).sum()
+
+    def update(self, h, loss):
+        idx = h - 1
+        self.W[idx] -= self.lr * loss
+
+class HierarchicalHorizonOPERA:
+    def __init__(
+        self,
+        y,
+        experts,
+        regimes,
+        horizons,
+        regime_gate,
+        model="FTRL",
+        loss_type="mse",
+        parameters=None,
+    ):
+        self.regimes = regimes
+        self.horizons = horizons
+        self.regime_gate = regime_gate
+        self.experts_names = experts.columns
+
+        # OPERA per (regime, horizon)
+        self.opera = {}
+        for r in tqdm(regimes, desc="Init regime"):
+            self.opera[r] = {}
+
+            for h in tqdm(horizons, desc=f"Init horizon [{r}]", leave=False):
+                self.opera[r][h] = Mixture(
+                    y=y,
+                    experts=experts,
+                    model=model,
+                    loss_type=loss_type,
+                    parameters=parameters,
+                )
+
+    def predict(self, expert_preds, regime_features):
+        """
+        expert_preds : dict[h] -> DataFrame (1, n_experts)
+        regime_features : np.array
+        """
+        p_regime = self.regime_gate.predict(regime_features)
+
+        preds = {}
+        for h in self.horizons:
+            y_hat = 0.0
+            for i, r in enumerate(self.regimes):
+                y_hat_r = self.opera[r][h].predict(expert_preds[h])
+                y_hat += p_regime[i] * y_hat_r
+            preds[h] = y_hat
+
+        return preds
+
+    def update(self, expert_preds, y_true, regime_features, regime_label):
+        """
+        regime_label : int (0 = bull, 1 = bear)
+        """
+        p_regime = self.regime_gate.predict(regime_features)
+        regime_losses = np.zeros(len(self.regimes))
+
+        for i, r in enumerate(self.regimes):
+            loss_r = 0.0
+
+            for h in self.horizons:
+                X_h = expert_preds[h]        # DataFrame (1, n_experts)
+                y_h = np.array([y_true[h]])
+
+                n_experts = X_h.shape[1]
+
+                # AWAKE CORRECT : (1, n_experts)
+                awake = np.zeros((1, n_experts))
+                if i == regime_label:
+                    awake[:] = 1.0
+
+                # Update OPERA
+                # self.opera[r][h].update(
+                #     X_h,
+                #     y_h,
+                #     awake=awake
+                # )
+                if i == regime_label:
+                    self.opera[r][h].update(X_h, y_h)
+
+
+                # Loss pour le gate
+                y_hat = self.opera[r][h].predict(X_h)
+                loss_r += (y_hat - y_h) ** 2
+
+            regime_losses[i] = loss_r
+
+        # Update du gate de régime
+        self.regime_gate.update(regime_features, regime_losses)
