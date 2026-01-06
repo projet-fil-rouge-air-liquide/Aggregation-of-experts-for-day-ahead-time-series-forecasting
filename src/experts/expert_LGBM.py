@@ -5,20 +5,22 @@ class LGBMExpert(BaseExpert):
     def __init__(
         self,
         features,
-        n_estimators=2000,
+        n_estimators=700,
         learning_rate=0.05,
         features_name = "unknow",
-        num_leaves=63,
-        max_depth=-1,
+        num_leaves=31,
+        max_depth=10,
         min_child_samples=20,
         subsample=0.8,
         colsample_bytree=0.8,
-        random_state=42
+        random_state=42,
+        n_jobs=-1
         ):
         # initialisation de la classe mère
         super().__init__(features,name="LGBM")
         # paramètres spécifiques de la classe LGBM
         self.n_estimators = n_estimators
+        self.n_jobs = n_jobs
         self.learning_rate = learning_rate
         self.num_leaves = num_leaves
         self.max_depth = max_depth

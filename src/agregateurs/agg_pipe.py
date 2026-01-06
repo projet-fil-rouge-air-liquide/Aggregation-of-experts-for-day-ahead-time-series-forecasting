@@ -4,16 +4,21 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 from sklearn.metrics import mean_absolute_error
 
-from utils.fonction import fit_predict_eval
+from utils.fonction import fit_predict_eval, calculate_nmae
 
 from src.config.data_train_valid_test import X_train,X_valid,X_test,y_train,y_valid,y_test
+from src.config.data_train_valid_test_to_24 import X_train_24,X_valid_24,X_test_24,y_train_24,y_valid_24,y_test_24
+
 from src.config.features import features_groupe
 from src.experts import expert_ElasticNet,expert_LGBM,expert_Ridge,expert_RandomForest
 from src.agregateurs.agg_lin import AGG_LIN
 
+
 # classes d'expert
 expert_classe = [expert_Ridge.RidgeExpert,
-                 expert_RandomForest.RandomForestExpert]
+                 expert_RandomForest.RandomForestExpert,
+                 #expert_LGBM.LGBMExpert
+                 ]
 
 experts=[]
 for name,features in features_groupe.items():
@@ -21,16 +26,69 @@ for name,features in features_groupe.items():
         experts.append(exp(features=features,features_name=name))
 
 results=[]
+experts_preds_val =[]
+experts_preds_test = []
+
+y_test_flat = y_test_24.flatten()
+ref_capacity = y_test_flat.max()
+
 for exp in experts:
-    y_p,mse_e =fit_predict_eval(exp,X_train,X_test,y_train,y_test)
+    y_pred,wape_value,mae,mse =fit_predict_eval(exp,X_train_24,X_test_24,y_train_24,y_test_24)
+
+    y_pred_flat = y_pred.flatten()
+    nmae_value = calculate_nmae(y_test_flat, y_pred_flat, capacity=ref_capacity)
+
+# construction des variables pour l'agrégation
+    # variables validation
+    y_pred_val = exp.predict(X_valid_24) 
+    experts_preds_val.append(y_pred_val)
+    # variables test
+    experts_preds_test.append(y_pred)
+
     results.append({
         "Exp_name": f"{exp.name}_{exp.features_name}",
-        "y_p": y_p,
-        "mse": mse_e
+        "nmae_%": nmae_value,
+        "wape": wape_value,
+        "mae": mae,
+        "mse": mse
 })
+    
 results = pd.DataFrame(results)
-results.sort_values(ascending=True,by="mse",inplace=True)
+results.sort_values(ascending=True,by="nmae_%",inplace=True)
 print(results)
+
+# conditionnemnet des variables d'agrégation avec np.column_stack
+X_val_agg = np.column_stack(experts_preds_val)
+X_test_agg = np.column_stack(experts_preds_test)
+
+# import numpy as np
+# from opera import Mixture
+
+# print("--- Diagnostic OPERA ---")
+# source = inspect.getsource(opera.Mixture.__init__)
+# print(source)
+
+# y_vals = y_valid.values.flatten()
+
+# # 2. Transformation de tes experts en DataFrame (C'est la ligne cruciale)
+# if isinstance(X_val_agg, np.ndarray):
+#     # On transforme l'array en DataFrame
+#     exp_vals = pd.DataFrame(X_val_agg)
+# else:
+#     exp_vals = X_val_agg
+
+# # 3. Appel à Mixture (avec loss_type='ls' ou sans l'argument)
+# mix = Mixture(
+#     y=y_vals, 
+#     experts=exp_vals, 
+#     model='ewa'
+# )
+
+# # 4. Pour la prédiction, fais de même pour le test
+# X_test_df = pd.DataFrame(X_test_agg)
+# y_pred_flat = mix.predict(experts=X_test_df)
+
+
 
 
 # for i in mse_exp:
@@ -121,3 +179,4 @@ print(results)
 
 # plt.tight_layout()
 # plt.show()
+# %%
