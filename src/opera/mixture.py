@@ -1256,13 +1256,23 @@ class RegimeGate:
         return eps / self.n_regimes + (1 - eps) * p
 
     def update(self, x, losses):
-        """
-        losses: np.array (n_regimes,)
-        """
         p = self.predict(x)
+
+        losses = losses - losses.mean()
+        losses = losses / (losses.std() + 1e-8)
+
         baseline = np.sum(p * losses)
         grad = np.outer(x, (losses - baseline))
         self.W -= self.lr * grad
+
+    # def update(self, x, losses):
+    #     """
+    #     losses: np.array (n_regimes,)
+    #     """
+    #     p = self.predict(x)
+    #     baseline = np.sum(p * losses)
+    #     grad = np.outer(x, (losses - baseline))
+    #     self.W -= self.lr * grad
 
 class HorizonGate:
     def __init__(self, max_horizon, lr=0.05):

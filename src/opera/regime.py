@@ -2,62 +2,41 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
-# =========================
-# Chargement de la série cible
-# =========================
+experts = pd.read_csv("data/experts/experts.csv")
 
-targets = pd.read_csv(
-    "data/experts/experts.csv",
-    usecols=[1]
-).squeeze()
+targets = experts.iloc[:, 1]
+dates = experts["Date_Heure"]
 
-dates = pd.read_csv(
-    "data/experts/experts.csv",
-    usecols=[0]
-)["Date_Heure"]
+#--- features ---
+features = pd.DataFrame(index=experts.index)
 
-# =========================
-# Construction des features
-# =========================
-
-df = pd.DataFrame(index=targets.index)
-
-# Rendement court terme
-df["ret_1"] = targets.diff()
+# Rendement short terme
+features["ret_1"] = targets.diff()
 
 # Tendance long terme
-df["ret_24"] = targets.diff(24)
+features["ret_24"] = targets.diff(24)
 
-# Volatilité rolling
-df["vol_24"] = targets.diff().rolling(24).std()
+# Volatility rolling
+features["vol_24"] = targets.diff().rolling(24).std()
 
 # Momentum
-df["mom_24"] = targets - targets.shift(24)
+features["mom_24"] = targets - targets.shift(24)
 
-# (optionnel) saisonnalité
-df["hour"] = pd.to_datetime(dates).dt.hour
-df["hour_sin"] = np.sin(2 * np.pi * df["hour"] / 24)
-df["hour_cos"] = np.cos(2 * np.pi * df["hour"] / 24)
+# Saisonnality
+hour = pd.to_datetime(dates).dt.hour
+features["hour_sin"] = np.sin(2 * np.pi * hour / 24)
+features["hour_cos"] = np.cos(2 * np.pi * hour / 24)
 
-# =========================
-# Nettoyage
-# =========================
-
-df = df.dropna()
-
-# =========================
-# Standardisation (TRÈS IMPORTANT)
-# =========================
-
+# Standardisation (feature-wise)
 scaler = StandardScaler()
-df_scaled = pd.DataFrame(
-    scaler.fit_transform(df),
-    index=df.index,
-    columns=df.columns
+features_scaled = pd.DataFrame(
+    scaler.fit_transform(features),
+    index=features.index,
+    columns=features.columns
 )
 
-# =========================
-# Sauvegarde
-# =========================
+# inject in experts.csv
+for col in features_scaled.columns:
+    experts[col] = features_scaled[col]
 
-df_scaled.to_csv("data/regime_features.csv", index=False)
+experts.to_csv("data/experts/experts.csv", index=False)
