@@ -1,12 +1,16 @@
-# 📊 Aggregation of Experts for Day-Ahead Time Series Forecasting
-
-Projet réalisé dans le cadre du **Projet Fil Rouge** des **Mastères Spécialisés IA et Data** de **Télécom Paris**.
-
-Ce projet vise à mettre en œuvre et comparer plusieurs modèles experts. de prévision de séries temporelles à horizon J+1, puis à les agréger à l’aide d’une approche de **Mixture of Experts (MOE)**.
+Here is the English translation:
 
 ---
 
-## 👥 Contributeurs
+# 📊 Aggregation of Experts for Day-Ahead Time Series Forecasting
+
+Project carried out as part of the **Capstone Project (Projet Fil Rouge)** of the **AI and Data Specialized Master’s Programs** at **Télécom Paris**.
+
+This project aims to implement and compare several expert models for **day-ahead (J+1) time series forecasting**, and then aggregate them using a **Mixture of Experts (MOE)** approach.
+
+---
+
+## 👥 Contributors
 
 * Alexandre Donnat
 * Ambroise Laroye
@@ -16,29 +20,29 @@ Ce projet vise à mettre en œuvre et comparer plusieurs modèles experts. de pr
 
 ---
 
-## 📁 Structure générale du projet
+## 📁 General Project Structure
 
-* `src/experts/` : construction et prédiction des modèles experts
-* `src/opera/` : implémentation de la méthode d’agrégation (MOE)
-* `src/data_cleaning.py` : récupération et nettoyage des données
-* `API_ERA5.py` : script de téléchargement des données météorologiques
-* `data/` : stockage des jeux de données (générés automatiquement)
+* `src/experts/`: construction and prediction of expert models
+* `src/opera/`: implementation of the aggregation method (MOE)
+* `src/data_cleaning.py`: data retrieval and cleaning
+* `API_ERA5.py`: script for downloading meteorological data
+* `data/`: storage of datasets (automatically generated)
 
 ---
 
-## 📥 Chargement des données
+## 📥 Data Loading
 
-### 1. Données météorologiques (ERA5)
+### 1. Meteorological Data (ERA5)
 
-Les données météorologiques doivent être chargées **en premier**.
-Elles nécessitent un compte personnel sur la plateforme **Copernicus ERA5**.
+Meteorological data must be loaded **first**.
+They require a personal account on the **Copernicus ERA5** platform.
 
-#### Étapes à suivre :
+#### Steps to follow:
 
-1. Créer un compte sur :
+1. Create an account at:
    👉 [https://cds.climate.copernicus.eu](https://cds.climate.copernicus.eu)
-2. Générer une **clé API personnelle**
-3. Lancer le script de récupération des données :
+2. Generate a **personal API key**
+3. Run the data retrieval script:
 
    ```bash
    python API_ERA5.py
@@ -46,64 +50,67 @@ Elles nécessitent un compte personnel sur la plateforme **Copernicus ERA5**.
 
 ---
 
-### 2. Données RTE
-
-Les données RTE sont **automatiquement téléchargées, extraites et renommées** lors du premier lancement du script suivant :
+### 2. ELIA Data
 
 ```bash
 python src/data_cleaning.py
 ```
 
-👉 Aucun téléchargement manuel n’est requis.
+👉 No manual download is required.
 
 ---
 
-## 🔧 Fonctionnement du repository & Workflow Git
+## 🔧 Repository Operation & Git Workflow
 
-* Chaque contributeur dispose de droits de lecture et d’écriture sur le repository.
-* Il est fortement recommandé de :
+* Each contributor has read and write access to the repository.
+* It is strongly recommended to:
 
-  * Cloner la branche `main`
-  * Créer une branche personnelle de développement (`dev/<prenom>` ou équivalent)
-  * Effectuer les pull requests vers `main` une fois les fonctionnalités validées
+  * Clone the `main` branch
+  * Create a personal development branch (`dev/<firstname>` or equivalent)
+  * Submit pull requests to `main` once features are validated
 
 ---
 
-## ⚙️ Exécution du projet
+## Build Experts Dataset
 
-### 1. Construction des modèles experts
+### 1. Building Expert Models
 
 ```bash
 python -m src.experts.build_experts
 ```
 
-**Sorties :**
+**Outputs:**
 
-* `expert.csv` : prédictions des experts
-* Graphique de comparaison *Expert vs Vérité terrain*
+* `expert.csv`: expert predictions
+* Comparison plot *Expert vs Ground Truth*
 
 ---
 
-### 2. Prédictions à 24h
+### 2. 24-Hour Predictions
 
 ```bash
 python -m src.expertsprediction_for_24h
 ```
 
-**Sortie :**
+**Output:**
 
-* `pred_24h.csv` : prédictions à J+1 des experts
+* `pred_24h.csv`: day-ahead (J+1) expert predictions
 
 ---
 
-### 3. Agrégation des experts (MOE)
-
+## Expert Aggregation (MOE)
+Add regime features in experts.csv :
 ```bash
-python -m src.opera.moe
+python -m src.opera.regime
+```
+Aggregate
+```bash
+python -m src.opera.hmoe
 ```
 
-**Sorties :**
+**Outputs:**
 
-* Graphique des **poids attribués aux experts**
-* Comparaison **Experts vs MOE vs Vérité terrain** sur 24h
+* Plot of **weights assigned to experts**
+* Comparison **Experts vs MOE vs Ground Truth** over 24 hours
 
+---
