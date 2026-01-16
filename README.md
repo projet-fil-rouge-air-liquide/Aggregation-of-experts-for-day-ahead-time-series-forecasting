@@ -1,50 +1,116 @@
-# Projet : Aggregation of Experts for Day-Ahead Time Series Forecasting
-
-Projet réalisé dans le cadre du Projet Fil Rouge des MS IA et Data de Telecom Paris
+Here is the English translation:
 
 ---
 
-## Contributeurs
+# Aggregation of Experts for Day-Ahead Time Series Forecasting
 
-- Alexandre Donnat
-- Ambroise Laroye
-- Héloïse Lordez
-- Oscar De La Cruz
-- William Jan
+Project carried out as part of the **Capstone Project (Projet Fil Rouge)** of the **AI and Data Specialized Master’s Programs** at **Télécom Paris**.
+
+This project aims to implement and compare several expert models for **day-ahead (J+1) time series forecasting**, and then aggregate them using a **Mixture of Experts (MOE)** approach.
 
 ---
 
-## Chargement des données
+## Contributors
 
-### 1. Données Météo (ERA5)
+* Alexandre Donnat
+* Ambroise Laroye
+* Héloïse Lordez
+* Oscar De La Cruz
+* William Jan
 
-Les données météorologiques doivent être chargées en premier.  
-Elles nécessitent un compte personnel sur la plateforme ERA5.
+---
 
-Étapes pour récupérer les données ERA5 :
+## General Project Structure
 
-1. Créer un compte :  
-   https://cds.climate.copernicus.eu  
-2. Générer une API key personnelle 
-3. Exécuter le script météo : API_ERA5.py dans config/API
+* `src/experts/`: construction and prediction of expert models
+* `src/opera/`: implementation of the aggregation method (MOE)
+* `src/data_cleaning.py`: data retrieval and cleaning
+* `API_ERA5.py`: script for downloading meteorological data
+* `data/`: storage of datasets (automatically generated)
 
+---
 
-### 2. Données ELIA
-Les données ELIA sont récupérées sur le site ELIA (fichier csv):
-https://opendata.elia.be/explore/dataset/ods086/export/
+## Data Loading
 
-### 3. Traitement des données et construction des features
-Exécuter le pipe: src/data_pipe.py
-Les données traitées et les features créées - sont stockée au format csv (data_engineering_belgique.csv) dans data/processed_data.
+### 1. Meteorological Data (ERA5)
 
-### 4. Données d'entrainement - Features des experts
-- Les données d'entrainement sont stockées dans src/config/data_train_valid_test.py
-- les features associées aux classes sont stockées dans src/config/features
+Meteorological data must be loaded **first**.
+They require a personal account on the **Copernicus ERA5** platform.
 
-### 5. Experts - agrégateurs
-Les experts et les agrégateurs sont créés sous forme de classes. base_expert et base_agg sont sont les classes mères des experts/agrégateurs.
-Les experts/agrégateurs sont instanciés/entrainés dans agg_pipe.py.
+#### Steps to follow:
 
-### 6. Fonctionnement du repository & Workflow Git
-Chaque contributeur possède des droits de lecture et d'écriture sur le repository.
-Il est recommandé de créer une branche personnelle DevOps après avoir cloné la branche main.
+1. Create an account at:
+   [https://cds.climate.copernicus.eu](https://cds.climate.copernicus.eu)
+2. Generate a **personal API key**
+3. Run the data retrieval script:
+
+   ```bash
+   python API_ERA5.py
+   ```
+
+---
+
+### 2. ELIA Data
+
+```bash
+python src/data_cleaning.py
+```
+
+No manual download is required.
+
+---
+
+## Repository Operation & Git Workflow
+
+* Each contributor has read and write access to the repository.
+* It is strongly recommended to:
+
+  * Clone the `main` branch
+  * Create a personal development branch (`dev/<firstname>` or equivalent)
+  * Submit pull requests to `main` once features are validated
+
+---
+
+## Build Experts Dataset
+
+### 1. Building Expert Models
+
+```bash
+python -m src.experts.build_experts
+```
+
+**Outputs:**
+
+* `expert.csv`: expert predictions
+* Comparison plot *Expert vs Ground Truth*
+
+---
+
+### 2. 24-Hour Predictions
+
+```bash
+python -m src.expertsprediction_for_24h
+```
+
+**Output:**
+
+* `pred_24h.csv`: day-ahead (J+1) expert predictions
+
+---
+
+## Expert Aggregation (MOE)
+Add regime features in experts.csv :
+```bash
+python -m src.opera.regime
+```
+Aggregate
+```bash
+python -m src.opera.hmoe
+```
+
+**Outputs:**
+
+* Plot of **weights assigned to experts**
+* Comparison **Experts vs MOE vs Ground Truth** over 24 hours
+
+---
