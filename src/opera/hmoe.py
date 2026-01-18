@@ -58,7 +58,7 @@ def online_learning(
             expert_preds=expert_preds_t,
             y_true=y_true_t,
             regime_features=regime_features.iloc[t].values,
-            regime_label=None  # ignoré
+            regime_label=None
         )
 
 
@@ -188,7 +188,8 @@ def main():
     regime_features = regime_features.loc[valid_idx]
 
 
-    horizons = [1, 8, 16, 24]
+    # horizons = [1, 8, 16, 24]
+    horizons = [1]
     regimes = ["bull", "bear"]
 
     parameters = {"eta": 0.05, "l1": 0.0, "l2": 0.01}
