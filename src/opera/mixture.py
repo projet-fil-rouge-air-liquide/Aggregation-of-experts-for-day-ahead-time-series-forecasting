@@ -1233,10 +1233,11 @@ class Mixture:
         plt.show()
 
 class RegimeGate:
-    def __init__(self, n_regimes, lr=0.01):
+    def __init__(self, n_regimes, lr=0.01, strenght=0.1):
         self.n_regimes = n_regimes
         self.lr = lr
-        self.W = None  # lazy init
+        self.strenght = strenght
+        self.W = None
 
     def _init(self, n_features):
         self.W = np.zeros((n_features, self.n_regimes))
@@ -1255,24 +1256,25 @@ class RegimeGate:
         eps = 0.05
         return eps / self.n_regimes + (1 - eps) * p
 
-    def update(self, x, losses):
+    def update(self, x, losses, direction_hint=None):
+        """
+        direction_hint: 
+            +1 -> bull
+            -1 -> bear
+        """
         p = self.predict(x)
 
         losses = losses - losses.mean()
         losses = losses / (losses.std() + 1e-8)
-
+        if direction_hint > 0: # bull
+            losses[0] -= self.strenght
+            losses[1] += self.strenght
+        elif direction_hint < 0: # bear
+            losses[0] += self.strenght
+            losses[1] -= self.strenght
         baseline = np.sum(p * losses)
         grad = np.outer(x, (losses - baseline))
         self.W -= self.lr * grad
-
-    # def update(self, x, losses):
-    #     """
-    #     losses: np.array (n_regimes,)
-    #     """
-    #     p = self.predict(x)
-    #     baseline = np.sum(p * losses)
-    #     grad = np.outer(x, (losses - baseline))
-    #     self.W -= self.lr * grad
 
 class HorizonGate:
     def __init__(self, max_horizon, lr=0.05):
@@ -1340,14 +1342,11 @@ class HierarchicalHorizonOPERA:
 
     def update(self, expert_preds, y_true, regime_features, regime_label):
         """
-        Update compatible Mixture.update():
-
-        - OPERA : hard update (spécialisation par régime)
-        - RegimeGate : soft update basé sur la performance réelle
-
+        Update Mixture.update():
+        - OPERA : hard update (specialized per regime)
+        - RegimeGate : soft update based on real perf
         regime_label : int (0 = bull, 1 = bear)
         """
-
         # Gate forward
         p_regime = self.regime_gate.predict(regime_features)
         n_regimes = len(self.regimes)
@@ -1362,16 +1361,22 @@ class HierarchicalHorizonOPERA:
                 X_h = expert_preds[h]
                 y_h = np.array([y_true[h]])
 
-                # prédiction courante
+                # current prediction
                 y_hat = self.opera[r][h].predict(X_h)
                 loss_r += float((y_hat - y_h) ** 2)
 
-                # UPDATE OPERA : HARD
+                # update OPERA : hard
                 if i == dominant:
                     self.opera[r][h].update(X_h, y_h)
 
             regime_losses[i] = loss_r / len(self.horizons)
+        ret_24 = regime_features[1]
+        direction_hint = np.sign(ret_24)
 
-        # UPDATE GATE : SOFT
-        self.regime_gate.update(regime_features, regime_losses)
+        # update GATE : soft
+        self.regime_gate.update(
+            regime_features, 
+            regime_losses,
+            direction_hint=direction_hint
+            )
 
