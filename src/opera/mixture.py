@@ -829,7 +829,7 @@ class Mixture:
         self.loss = np.mean(self.loss_function(self.predictions, self.targets))
         self.update_coefficient()
 
-    def predict_at_t_BOA(self, x, y, awake=None, weigth=1.0):
+    def predict_at_t_BOA(self, x, y, awake=None):
         """predicts at time t using BOA."""
         idx = awake > 0
         Raux = (
@@ -1237,35 +1237,40 @@ class RegimeGate:
         self.n_regimes = n_regimes
         self.lr = lr
         self.strenght = strenght
-        self.W = None
+        self.W = None # feature -> regime weights
 
     def _init(self, n_features):
         self.W = np.zeros((n_features, self.n_regimes))
 
     def predict(self, x):
         """
+        Compute regime probabilities given input features.
         x: np.array (n_features,)
         return : p_regime = [P(bull | x), P(bear | x)]
         """
         if self.W is None:
             self._init(len(x))
-        logits = x @ self.W
+        logits = x @ self.W  # Linear scores for each regime
         logits -= logits.max()
+        # Softmax
         exp = np.exp(logits / 2.0)
         p = exp / exp.sum()
-        eps = 0.05
+
+        eps = 0.05 # keep exploration -> bull or bear never 0
         return eps / self.n_regimes + (1 - eps) * p
 
     def update(self, x, losses, direction_hint=None):
         """
+        Update the gate based on observed regime losses.
         direction_hint: 
             +1 -> bull
             -1 -> bear
         """
-        p = self.predict(x)
-
+        p = self.predict(x) # current regime proba
+        # normalize losses to compare regimes
         losses = losses - losses.mean()
         losses = losses / (losses.std() + 1e-8)
+        # bias to force bull (resp bear) when increse (resp decrease)
         if direction_hint > 0: # bull
             losses[0] -= self.strenght
             losses[1] += self.strenght
@@ -1273,6 +1278,7 @@ class RegimeGate:
             losses[0] += self.strenght
             losses[1] -= self.strenght
         baseline = np.sum(p * losses)
+        # grad desc on loss
         grad = np.outer(x, (losses - baseline))
         self.W -= self.lr * grad
 
@@ -1361,11 +1367,11 @@ class HierarchicalHorizonOPERA:
                 X_h = expert_preds[h]
                 y_h = np.array([y_true[h]])
 
-                # current prediction
+                # Prediction error
                 y_hat = self.opera[r][h].predict(X_h)
                 loss_r += float((y_hat - y_h) ** 2)
 
-                # update OPERA : hard
+                # hard update -> only dominant regime
                 if i == dominant:
                     self.opera[r][h].update(X_h, y_h)
 
