@@ -108,9 +108,75 @@ Aggregate
 python -m src.opera.hmoe
 ```
 
-**Outputs:**
+## Evaluate models
 
-* Plot of **weights assigned to experts**
-* Comparison **Experts vs MOE vs Ground Truth** over 24 hours
+### Evaluation Protocol
+
+The evaluation is performed on 10% of the dataset `data_engineering_belgique.csv`.
+
+The test data is split into 24-hour windows (i.e., 24 consecutive values). To preserve and increase disparity of data and reduce computational cost. (because at each step we performed on 24 consecutive values - ie day ahead)
+
+For each step:
+* A value is observed.
+* A prediction is made using **online learning over a 24-value horizon**, either based on the previous prediction or updated model parameters.
+* A Mixture of Experts (MoE) is then applied to combine the experts’ predictions.
+* The predictions from individual experts and from the MoE are compared to the true values to compute the error.
+
+### Evaluation Metrics
+
+The following metrics are used:
+
+* **RMSE** (Root Mean Squared Error)
+* **MAE** (Mean Absolute Error)
+* **R²** (Coefficient of Determination)
+
+---
+
+### Baseline: OPERA
+
+To run the OPERA baseline evaluation:
+
+```bash
+python -m src.eval.moe
+```
+
+---
+
+### HMOE (Regime bear/bull)
+
+### Step 1: Add Market Regimes
+
+Before running HMOE, market regimes (e.g., **bear / bull**) must be added to the dataset.
+
+!! Make sure to update the dataset path if needed:
+`data/processed_data/data_engineering_belgique.csv`
+
+```bash
+python -m src.opera.regime
+```
+
+### Step 2: Run HMOE Evaluation
+
+```bash
+python -m src.eval.hmoe
+```
+
+---
+
+### Full Comparison
+
+To evaluate and compare:
+
+* Individual experts (**ElasticNet, Random Forest, LGBM**)
+* OPERA baseline (MoE)
+* HMOE with market regimes (bear/bull)
+
+run:
+
+```bash
+python -m src.eval.moe_vs_hmoe_vs_experts
+```
+
+Output files save in csv in /eval
 
 ---

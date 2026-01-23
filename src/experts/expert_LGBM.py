@@ -64,7 +64,8 @@ class LGBMExpert(BaseExpert):
             subsample=subsample,
             colsample_bytree=colsample_bytree,
             random_state=random_state,
-            n_jobs=-1
+            n_jobs=-1,
+            verbosity=-1
         )
 
         self.is_fitted = False
