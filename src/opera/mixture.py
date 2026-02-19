@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.optimize import minimize
+from itertools import product
 
 from tqdm import tqdm
 
@@ -1232,157 +1233,139 @@ class Mixture:
             raise (NotImplementedError(f"{plot_type} plot not implemented yet."))
         plt.show()
 
-class RegimeGate:
-    def __init__(self, n_regimes, lr=0.01, strenght=0.1):
-        self.n_regimes = n_regimes
-        self.lr = lr
-        self.strenght = strenght
-        self.W = None # feature -> regime weights
 
-    def _init(self, n_features):
-        self.W = np.zeros((n_features, self.n_regimes))
+class HMoE:
+    """
+    Hierarchical Mixture of Experts.
 
-    def predict(self, x):
-        """
-        Compute regime probabilities given input features.
-        x: np.array (n_features,)
-        return : p_regime = [P(bull | x), P(bear | x)]
-        """
-        if self.W is None:
-            self._init(len(x))
-        logits = x @ self.W  # Linear scores for each regime
-        logits -= logits.max()
-        # Softmax
-        exp = np.exp(logits / 2.0)
-        p = exp / exp.sum()
-
-        eps = 0.05 # keep exploration -> bull or bear never 0
-        return eps / self.n_regimes + (1 - eps) * p
-
-    def update(self, x, losses, direction_hint=None):
-        """
-        Update the gate based on observed regime losses.
-        direction_hint: 
-            +1 -> bull
-            -1 -> bear
-        """
-        p = self.predict(x) # current regime proba
-        # normalize losses to compare regimes
-        losses = losses - losses.mean()
-        losses = losses / (losses.std() + 1e-8)
-        # bias to force bull (resp bear) when increse (resp decrease)
-        if direction_hint > 0: # bull
-            losses[0] -= self.strenght
-            losses[1] += self.strenght
-        elif direction_hint < 0: # bear
-            losses[0] += self.strenght
-            losses[1] -= self.strenght
-        baseline = np.sum(p * losses)
-        # grad desc on loss
-        grad = np.outer(x, (losses - baseline))
-        self.W -= self.lr * grad
-
-class HorizonGate:
-    def __init__(self, max_horizon, lr=0.05):
-        self.max_horizon = max_horizon
-        self.lr = lr
-        self.W = np.zeros((max_horizon,))
-
-    def predict(self, h):
-        """
-        h: horizon index (1 ... max_horizon)
-        """
-        return np.exp(self.W[h-1]) / np.exp(self.W).sum()
-
-    def update(self, h, loss):
-        idx = h - 1
-        self.W[idx] -= self.lr * loss
-
-class HierarchicalHorizonOPERA:
+    - regime_context: eg. trend, wind ...
+    - Multiple regime (trend, wind, ...)
+    - One expert per joint regime
+    - Soft gating : prediction 
+    - Hard update : training
+    """
     def __init__(
         self,
         y,
         experts,
-        regimes,
-        horizons,
-        regime_gate,
+        regime_context,
         model="FTRL",
         loss_type="mse",
         parameters=None,
     ):
-        self.regimes = regimes
-        self.horizons = horizons
-        self.regime_gate = regime_gate
-        self.experts_names = experts.columns
+        self.y = y
+        self.experts = experts
+        self.regime_context = regime_context
 
-        # OPERA per (regime, horizon)
-        self.opera = {}
-        for r in tqdm(regimes, desc="Init regime"):
-            self.opera[r] = {}
+        # Ordered list of contexts / regimes
+        self.context_names = list(regime_context.keys())
 
-            for h in tqdm(horizons, desc=f"Init horizon [{r}]", leave=False):
-                self.opera[r][h] = Mixture(
-                    y=y,
-                    experts=experts,
-                    model=model,
-                    loss_type=loss_type,
-                    parameters=parameters,
-                )
+        # product of regimes
+        self.regime_space = list(
+            product(*[context.regimes for context in regime_context.values()])
+        )
+
+        # One expert (Mixture / OPERA) per joint regime
+        self.experts_by_regime = {}
+        for regime_tuple in self.regime_space:
+            self.experts_by_regime[regime_tuple] = Mixture(
+                y=y,
+                experts=experts,
+                model=model,
+                loss_type=loss_type,
+                parameters=parameters,
+            )
 
     def predict(self, expert_preds, regime_features):
         """
-        expert_preds : dict[h] -> DataFrame (1, n_experts)
-        regime_features : np.array
+        Compute the final prediction as a weighted mixture of experts.
+
+        expert_preds    : DataFrame (1, n_experts)
+        regime_features : dict[context_name] -> np.array
         """
-        p_regime = self.regime_gate.predict(regime_features)
 
-        preds = {}
-        for h in self.horizons:
-            y_hat = 0.0
-            for i, r in enumerate(self.regimes):
-                y_hat_r = self.opera[r][h].predict(expert_preds[h])
-                y_hat += p_regime[i] * y_hat_r
-            preds[h] = y_hat
+        # === Get probabilities per context ===
+        context_probs = {
+            name: context.predict(regime_features[name])
+            for name, context in self.regime_context.items()
+        }
 
-        return preds
+        # === Compute joint regime probabilities ===
+        joint_probs = np.zeros(len(self.regime_space))
 
-    def update(self, expert_preds, y_true, regime_features, regime_label):
+        for i, regime_tuple in enumerate(self.regime_space):
+            p = 1.0
+            for j, context_name in enumerate(self.context_names):
+                context = self.regime_context[context_name]
+                regime_idx = context.regimes.index(regime_tuple[j])
+                p *= context_probs[context_name][regime_idx]
+            joint_probs[i] = p
+
+        # Normalize
+        joint_probs /= joint_probs.sum()
+
+        # === Weighted mixture of expert predictions ===
+        y_hat = 0.0
+        for i, regime_tuple in enumerate(self.regime_space):
+            y_hat_r = self.experts_by_regime[regime_tuple].predict(expert_preds)
+            y_hat += joint_probs[i] * y_hat_r
+
+        return y_hat
+
+    def update(self, expert_preds, y_true, regime_features):
         """
-        Update Mixture.update():
-        - OPERA : hard update (specialized per regime)
-        - RegimeGate : soft update based on real perf
-        regime_label : int (0 = bull, 1 = bear)
+        Update experts and gates using observed outcome.
+
+        expert_preds    : DataFrame (1, n_experts)
+        y_true          : float
+        regime_features : dict[context_name] -> np.array
         """
-        # Gate forward
-        p_regime = self.regime_gate.predict(regime_features)
-        n_regimes = len(self.regimes)
-        regime_losses = np.zeros(n_regimes)
 
-        dominant = np.argmax(p_regime)
+        # === Forward gates ===
+        context_probs = {
+            name: context.predict(regime_features[name])
+            for name, context in self.regime_context.items()
+        }
 
-        for i, r in enumerate(self.regimes):
-            loss_r = 0.0
+        # === Joint probabilities ===
+        joint_probs = np.zeros(len(self.regime_space))
 
-            for h in self.horizons:
-                X_h = expert_preds[h]
-                y_h = np.array([y_true[h]])
+        for i, regime_tuple in enumerate(self.regime_space):
+            p = 1.0
+            for j, context_name in enumerate(self.context_names):
+                context = self.regime_context[context_name]
+                regime_idx = context.regimes.index(regime_tuple[j])
+                p *= context_probs[context_name][regime_idx]
+            joint_probs[i] = p
 
-                # Prediction error
-                y_hat = self.opera[r][h].predict(X_h)
-                loss_r += float((y_hat - y_h) ** 2)
+        dominant_regime = np.argmax(joint_probs)
 
-                # hard update -> only dominant regime
-                if i == dominant:
-                    self.opera[r][h].update(X_h, y_h)
+        # === Compute loss per joint regime ===
+        joint_losses = np.zeros(len(self.regime_space))
 
-            regime_losses[i] = loss_r / len(self.horizons)
-        ret_24 = regime_features[1]
-        direction_hint = np.sign(ret_24)
+        for i, regime_tuple in enumerate(self.regime_space):
+            expert = self.experts_by_regime[regime_tuple]
 
-        # update GATE : soft
-        self.regime_gate.update(
-            regime_features, 
-            regime_losses,
-            direction_hint=direction_hint
-            )
+            y_hat = expert.predict(expert_preds)
+            loss = float((y_hat - y_true) ** 2)
+            joint_losses[i] = loss
+
+            # Hard update: only the dominant regime learns
+            if i == dominant_regime:
+                expert.update(expert_preds, np.array([y_true]))
+
+        # === Backpropagate losses for each context ===
+        for context_name, context in self.regime_context.items():
+            context_losses = np.zeros(len(context.regimes))
+            context_idx = self.context_names.index(context_name)
+
+            for i, regime in enumerate(context.regimes):
+                relevant = [
+                    j for j, r in enumerate(self.regime_space)
+                    if r[context_idx] == regime
+                ]
+                context_losses[i] = joint_losses[relevant].mean()
+
+            context.update(regime_features[context_name], context_losses)
+
 

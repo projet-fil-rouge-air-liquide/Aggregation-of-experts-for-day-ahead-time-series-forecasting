@@ -152,8 +152,9 @@ Before running HMOE, market regimes (e.g., **bear / bull**) must be added to the
 `data/processed_data/data_engineering_belgique.csv`
 
 ```bash
-python -m src.opera.regime
+python -m src.opera.regime_features
 ```
+This will add column to experts.csv that will be needed for HMoE.
 
 ### Step 2: Run HMOE Evaluation
 
