@@ -44,8 +44,7 @@ class LGBMExpert(BaseExpert):
     def fit(self,X,y):
         X_sel = X[self.features]
         self.expert.fit(X_sel,
-                        y,
-                        callbacks=[early_stopping(stopping_rounds=50)] # S'arrête si ça ne progresse plus
+                        y
         )
         self.is_fitted = True
 

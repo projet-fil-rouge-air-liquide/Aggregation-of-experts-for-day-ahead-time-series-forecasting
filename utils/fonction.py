@@ -27,8 +27,36 @@ def fit_predict_eval(expert,X_train,X_test,y_train,y_test):
     mae = (mean_absolute_error(y_test, y_pred))
     mse = (mean_squared_error(y_test, y_pred))
     wape_value = wape(y_test, y_pred)
+    nmae_value = calculate_nmae(y_test, y_pred)
 
-    return y_pred,wape_value,mae,mse
+    return y_pred,wape_value,mae,mse,nmae_value
+
+def predict_eval(expert, X_test, y_test, capacity=None):
+    # 1. Prédiction (renvoie probablement un vecteur plat de 2184 éléments)
+    y_pred = expert.predict(X_test)
+    
+    # 2. On aplatit TOUT pour être sûr d'avoir des vecteurs (2184,)
+    # y_test_flat aura 2184 éléments même s'il arrive en (91, 24)
+    y_test_flat = np.array(y_test).flatten()
+    y_pred_flat = np.array(y_pred).flatten()
+    
+    # 3. Vérification de sécurité (optionnel mais recommandé)
+    if y_test_flat.shape != y_pred_flat.shape:
+        # Si X_test était au format 24h, y_pred pourrait être (91, 24)
+        # On force le format plat pour la comparaison
+        y_pred_flat = y_pred_flat.reshape(-1)
+
+    # 4. Calcul des métriques sur les vecteurs plats
+    mae = mean_absolute_error(y_test_flat, y_pred_flat)
+    mse = mean_squared_error(y_test_flat, y_pred_flat)
+    wape_value = (np.sum(np.abs(y_test_flat - y_pred_flat)) / np.sum(y_test_flat)) * 100
+    
+    if capacity is None:
+        capacity = y_test_flat.max()
+    nmae_value = (mae / capacity) * 100
+
+    # On retourne y_pred au format original (91, 24) pour la suite de ton code
+    return y_pred.reshape(-1, 24), wape_value, mae, mse, nmae_value
 
 def fit(expert,X_train,y_train):
     expert.fit(X_train,y_train)

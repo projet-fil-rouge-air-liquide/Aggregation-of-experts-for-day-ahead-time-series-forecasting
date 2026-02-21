@@ -3,8 +3,13 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 from sklearn.metrics import mean_absolute_error
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import Ridge, RidgeCV, LassoCV
+from sklearn.model_selection import cross_val_score, TimeSeriesSplit
+from sklearn.ensemble import RandomForestRegressor
 
-from utils.fonction import fit_predict_eval, calculate_nmae
+from utils.fonction import fit_predict_eval, calculate_nmae, predict_eval
 
 from src.config.data_train_valid_test import X_train,X_valid,X_test,y_train,y_valid,y_test
 from src.config.data_train_valid_test_to_24 import X_train_24,X_valid_24,X_test_24,y_train_24,y_valid_24,y_test_24
@@ -17,7 +22,7 @@ from src.agregateurs.agg_lin import AGG_LIN
 # classes d'expert
 expert_classe = [expert_Ridge.RidgeExpert,
                  expert_RandomForest.RandomForestExpert,
-                 #expert_LGBM.LGBMExpert
+                 expert_LGBM.LGBMExpert
                  ]
 
 experts=[]
@@ -29,21 +34,24 @@ results=[]
 experts_preds_val =[]
 experts_preds_test = []
 
-y_test_flat = y_test_24.flatten()
-ref_capacity = y_test_flat.max()
+ref_capacity = max(y_train.max(), y_valid.max(), y_test.max())
 
 for exp in experts:
-    y_pred,wape_value,mae,mse =fit_predict_eval(exp,X_train_24,X_test_24,y_train_24,y_test_24)
+    exp.fit(X_train,y_train)
 
-    y_pred_flat = y_pred.flatten()
-    nmae_value = calculate_nmae(y_test_flat, y_pred_flat, capacity=ref_capacity)
+    y_pred, wape_value, mae, mse, nmae_value = predict_eval(
+        exp, 
+        X_test, 
+        y_test, 
+        capacity=ref_capacity
+    ) 
 
 # construction des variables pour l'agrégation
     # variables validation
-    y_pred_val = exp.predict(X_valid_24) 
+    y_pred_val = exp.predict(X_valid) 
     experts_preds_val.append(y_pred_val)
     # variables test
-    experts_preds_test.append(y_pred)
+    experts_preds_test.append(y_pred.flatten())
 
     results.append({
         "Exp_name": f"{exp.name}_{exp.features_name}",
@@ -58,125 +66,123 @@ results.sort_values(ascending=True,by="nmae_%",inplace=True)
 print(results)
 
 # conditionnemnet des variables d'agrégation avec np.column_stack
+y_valid_flat = y_valid.values.flatten()
 X_val_agg = np.column_stack(experts_preds_val)
 X_test_agg = np.column_stack(experts_preds_test)
 
-# import numpy as np
-# from opera import Mixture
+# ---------------- création de l'agrégateur linéaire avec cross validation - RIDGE ---------------- #
+tsv = TimeSeriesSplit(n_splits=5)
+alpha_test = np.logspace(2,10,20)
+agg_ridge_cv = RidgeCV(alphas=alpha_test,
+                       cv=tsv,
+                       scoring='neg_mean_absolute_error',
+                       fit_intercept=False)
+agg_ridge_cv.fit(X_val_agg,y_valid_flat)
 
-# print("--- Diagnostic OPERA ---")
-# source = inspect.getsource(opera.Mixture.__init__)
-# print(source)
+alpha_best = agg_ridge_cv.alpha_
+print('best alpha: ',alpha_best)
 
-# y_vals = y_valid.values.flatten()
+y_pred_agg_test, wape_agg, mae_agg, mse_agg, nmae_agg = predict_eval(
+    agg_ridge_cv,
+    X_test_agg,
+    y_test,
+    capacity=ref_capacity
+)
+# récupération des coefficients
+coefficient = agg_ridge_cv.coef_        
+intercept = agg_ridge_cv.intercept_
 
-# # 2. Transformation de tes experts en DataFrame (C'est la ligne cruciale)
-# if isinstance(X_val_agg, np.ndarray):
-#     # On transforme l'array en DataFrame
-#     exp_vals = pd.DataFrame(X_val_agg)
-# else:
-#     exp_vals = X_val_agg
+df_coef = pd.DataFrame({
+    'coefficient':coefficient,
+    'intercept':intercept,
+    "expert": [f"{exp.name}_{exp.features_name}" for exp in experts]
+})
+#print(df_coef)
+print(f"nMAE de l'agrégateur Ridge cv : {nmae_agg:.2f}%")
 
-# # 3. Appel à Mixture (avec loss_type='ls' ou sans l'argument)
-# mix = Mixture(
-#     y=y_vals, 
-#     experts=exp_vals, 
-#     model='ewa'
-# )
+# ---------------- création de l'agrégateur linéaire avec cross validation - LASSO ---------------- #
+tsv_l = TimeSeriesSplit(5)
+alpha_test = np.logspace(-4,4,20)
+agg_lasso_cv = LassoCV(
+    alphas=alpha_test,
+    cv=tsv,
+    random_state=0,
+    max_iter=10000,
+    fit_intercept=False,
+    selection='random',
+    n_jobs=-1,
+)
 
-# # 4. Pour la prédiction, fais de même pour le test
-# X_test_df = pd.DataFrame(X_test_agg)
-# y_pred_flat = mix.predict(experts=X_test_df)
+agg_lasso_cv.fit(X_val_agg,y_valid_flat)
 
+alpha_best = agg_lasso_cv.alpha_
+print('best alpha: ',alpha_best)
 
+y_pred_agg_test, wape_agg, mae_agg_la, mse_agg, nmae_agg_la = predict_eval(
+    agg_lasso_cv,
+    X_test_agg,
+    y_test,
+    capacity=ref_capacity
+)
+coef_lasso = agg_lasso_cv.coef_
+experts_conserves = np.sum(coef_lasso != 0)
+print(f"Meilleur alpha : {agg_lasso_cv.alpha_}")
+print(f"Nombre d'experts conservés par le Lasso : {experts_conserves} / {len(coef_lasso)}")
+print(f"nMAE de l'agrégateur Lasso : {nmae_agg_la:.2f}%")
+# ---------------- création de l'agrégateur non linéaire  ---------------- #
 
+agg_rf = RandomForestRegressor(
+    n_estimators=100,
+    max_depth=5,
+    min_samples_leaf=10,
+    random_state=10,
+    n_jobs=-1
+)
+agg_rf.fit(X_val_agg,y_valid_flat)
 
-# for i in mse_exp:
-#     print("Valeur de MAE:",i)
-
-# # création des variable de l'agrégateur
-# X_train_agg =[]
-# X_test_agg = []
-# for exp in experts:
-#     X_train_agg.append(exp.predict(X_valid))    # agrégatino offline
-#     X_test_agg.append(exp.predict(X_test))      # agrégatino offline
-# X_train_agg = np.vstack(X_train_agg).T
-# X_test_agg = np.vstack(X_test_agg).T
-
-# # création / entrainement de l'agrégateur linéaire
-# agg_linalg = AGG_LIN(experts)
-# y_pred_agg,rmse_agg = fit_predict_eval(agg_linalg,X_train_agg,X_test_agg,y_valid,y_test)
-# # étude des poids
-# scaler = agg_linalg.pipeline.named_steps["scaler"]
-# model = agg_linalg.pipeline.named_steps["model"]
-
-# coef_std = model.coef_
-# coef_real = coef_std / scaler.scale_
-# intercept_real = model.intercept_ - np.sum(coef_std * scaler.mean_ / scaler.scale_)
-
-# print("coef_real:",coef_real)
-# print("intercept_real:",intercept_real)
-# print("MAE de l'agg linéaire",rmse_agg)
-
-
-# index = pd.date_range(start='2025-11-11 00:00', end='2025-11-23 00:00', freq='H')
-# n=len(index)
-# y_day_ahead = pd.Series(y_test.iloc[:n].values, index=index)
-# # convertir les prédictions en Series et aligner les index fournis pour le plot
-# y_day_ahead_pred_EN = pd.Series(y_pred_exp[0][:n], index=index)
-# y_day_ahead_pred_R = pd.Series(y_pred_exp[1][:n], index=index)
-# #y_day_ahead_pred_LGBM = pd.Series(y_pred_exp[2][:n], index=index)
-# y_day_ahead_pred_agg_lin = pd.Series(y_pred_agg[:n], index=index)
-# # visualisation (tous tracés sur le même index temporel explicite)
-
-# plt.figure(figsize=(10,6))
-# plt.plot(index, y_day_ahead, label="Valeurs réelles", color="red")
-# plt.plot(index, y_day_ahead_pred_EN, color = "blue", label="Prédictions EN", linestyle='--', linewidth=2, zorder=5)
-# plt.plot(index, y_day_ahead_pred_R, color="orange", label="Prédictions R", linestyle='--', linewidth=2, zorder=5)
-# #plt.plot(index, y_day_ahead_pred_LGBM, color= "green", label="Prédictions LGBM",linestyle='--', linewidth=2, zorder=5)
-# plt.plot(index, y_day_ahead_pred_agg_lin, color= "black", label="Prédictions Agg_Lin",linestyle='--', linewidth=2, zorder=5)
-# plt.xlabel("Index temporel")   
-# plt.ylabel("Production éolienne (MW)") 
-# plt.title("Prédictions - Expert vs Valeurs réelles")
-# plt.legend()
-# plt.show()
+y_pred_agg_test, wape_agg_rf, mae_agg_rf, mse_agg_rf, nmae_agg_rf = predict_eval(
+    agg_rf,
+    X_test_agg,
+    y_test,
+    capacity=ref_capacity
+)
+print(f"nMAE de l'agrégateur RF : {nmae_agg_rf:.2f}%")
 
 
-# # représentation de la prédiction vs valeurs réeels
-# plt.style.use("ggplot")
+import matplotlib.pyplot as plt
+import numpy as np
 
-# plt.figure(figsize=(9,7))
+def plot_day_ahead(day_index, y_test_24, experts_preds_test, expert_names, y_agg_flat, ref_capacity):
+    plt.figure(figsize=(12, 6))
+    
+    # 1. Tracé du Réel
+    real_day = y_test_24[day_index]
+    plt.plot(range(24), real_day, label="Réel (Production)", color='black', linewidth=3, zorder=10)
+    
+    # 2. Tracé des meilleurs experts (en pointillés)
+    for i in range(min(3, len(experts_preds_test))):
+        pred_matrix = experts_preds_test[i].reshape(-1, 24)
+        plt.plot(range(24), pred_matrix[day_index], '--', label=f"Exp: {expert_names[i]}", alpha=0.6)
 
-# plt.hexbin(
-#     y_test, y_pred_agg,
-#     gridsize=60,
-#     cmap="viridis",
-#     mincnt=1,
-#     norm=LogNorm()
-# )
-# plt.colorbar(label="Densité (log)")
+    # 3. Tracé de l'AGRÉGATEUR 
+    #agg_matrix = y_agg_flat.reshape(-1, 24)
+    #plt.plot(range(24), agg_matrix[day_index], color='red', linewidth=2.5, label="AGRÉGATEUR FINAL", zorder=11)
 
-# max_val = max(max(y_test), max(y_pred_agg))
-# min_val = min(min(y_test), min(y_pred_agg))
+    # Cosmétique
+    plt.title(f"Profil Day-Ahead - Jour")# {day_index} (nMAE Agg: {nmae_agg:.2f}%)")
+    plt.xlabel("Heure")
+    plt.ylabel("Puissance (MW)")
+    plt.legend(loc='upper left', bbox_to_anchor=(1, 1))
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
 
-# # droite idéale y = x
-# plt.plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=1.5)
 
-# # régression linéaire
-# coef = np.polyfit(y_test, y_pred_agg, 1)
-# poly = np.poly1d(coef)
+# On récupère les noms des experts triés par performance
+sorted_names = results.sort_values("nmae_%")["Exp_name"].tolist()
+# On récupère les prédictions correspondantes
+sorted_preds = [experts_preds_test[i] for i in results.sort_values("nmae_%").index]
 
-# x_sorted = np.sort(y_test)
-# plt.plot(x_sorted, poly(x_sorted), color="orange", linewidth=2)
+# Tracer le jour 10 par exemple
+plot_day_ahead(28, y_test_24, sorted_preds, sorted_names, y_pred_agg_test, ref_capacity)
 
-# plt.axis("equal")
-# plt.xlim(min_val, max_val)
-# plt.ylim(min_val, max_val)
-
-# plt.xlabel("Valeurs réelles (MW)")
-# plt.ylabel("Valeurs prédites (MW)")
-# plt.title("Réel vs Prédit — AGG Linéaire")
-
-# plt.tight_layout()
-# plt.show()
-# %%
