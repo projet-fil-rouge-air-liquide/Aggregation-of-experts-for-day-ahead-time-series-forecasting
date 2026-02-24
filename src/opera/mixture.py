@@ -830,7 +830,7 @@ class Mixture:
         self.loss = np.mean(self.loss_function(self.predictions, self.targets))
         self.update_coefficient()
 
-    def predict_at_t_BOA(self, x, y, awake=None):
+    def predict_at_t_BOA(self, x, y, awake=None, weight=1.0):
         """predicts at time t using BOA."""
         idx = awake > 0
         Raux = (
@@ -883,7 +883,7 @@ class Mixture:
         self.w = np.exp(Raux - Rmax)
         self.w = normalize(self.w)
 
-    def predict_at_t_MLPol(self, x, y, awake=None):
+    def predict_at_t_MLPol(self, x, y, awake=None, weight=1.0):
         """predicts at time t using MLpol."""
         np_relu = np.maximum(self.cum_regrets, 0)
         self.w = np.multiply(self.learning_rates, np_relu)
@@ -935,13 +935,14 @@ class Mixture:
             self.w = np.ones(self.w.shape) / self.K
         self.w = normalize(self.w)
 
-    def predict_at_t_MLProd(self, x, y, awake=None):
+    def predict_at_t_MLProd(self, x, y, awake=None, weight=1.0):
         """predicts at time t using MLprod."""
         self.w = np.multiply(self.learning_rates, np.exp(self.cum_regrets))
         self.w = np.divide(self.w, np.sum(self.w, axis=-1, keepdims=True))
         self.w = normalize(awake * self.w)
 
         y_hat, r = self.gradient_to_call(x, y, awake=awake)
+        r = weight * r
         r_square = np.square(r)
         self.cum_vars += r_square
         self.max_losses = np.maximum(self.max_losses, np.abs(r))
