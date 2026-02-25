@@ -1,14 +1,6 @@
-Here is the English translation:
-
----
-
 # Aggregation of Experts for Day-Ahead Time Series Forecasting
 
-Project carried out as part of the **Capstone Project (Projet Fil Rouge)** of the **AI and Data Specialized Master’s Programs** at **Télécom Paris**.
-
-This project aims to implement and compare several expert models for **day-ahead (J+1) time series forecasting**, and then aggregate them using a **Mixture of Experts (MOE)** approach.
-
----
+This project implements and compares several expert models for **day-ahead (J+1) time series forecasting**, and aggregates them using a **Mixture of Experts (MoE)** framework.
 
 ## Contributors
 
@@ -18,62 +10,20 @@ This project aims to implement and compare several expert models for **day-ahead
 * Oscar De La Cruz
 * William Jan
 
----
+## Project Structure
 
-## General Project Structure
-
-* `src/experts/`: construction and prediction of expert models
-* `src/opera/`: implementation of the aggregation method (MOE)
-* `src/data_cleaning.py`: data retrieval and cleaning
-* `API_ERA5.py`: script for downloading meteorological data
-* `data/`: storage of datasets (automatically generated)
-
----
-
-## Data Loading
-
-### 1. Meteorological Data (ERA5)
-
-Meteorological data must be loaded **first**.
-They require a personal account on the **Copernicus ERA5** platform.
-
-#### Steps to follow:
-
-1. Create an account at:
-   [https://cds.climate.copernicus.eu](https://cds.climate.copernicus.eu)
-2. Generate a **personal API key**
-3. Run the data retrieval script:
-
-   ```bash
-   python API_ERA5.py
-   ```
-
----
-
-### 2. ELIA Data
+* `src/experts/`: expert model construction and prediction
+* `src/opera/`: aggregation methods (MoE & HMoE)
+* `src/eval/`: evaluation of experts, MoE, and HMoE
+* `data/`: datasets
 
 ```bash
 python src/data_cleaning.py
 ```
 
-No manual download is required.
-
----
-
-## Repository Operation & Git Workflow
-
-* Each contributor has read and write access to the repository.
-* It is strongly recommended to:
-
-  * Clone the `main` branch
-  * Create a personal development branch (`dev/<firstname>` or equivalent)
-  * Submit pull requests to `main` once features are validated
-
----
-
 ## Build Experts Dataset
 
-### 1. Building Expert Models
+### 1. Build Expert Models
 
 ```bash
 python -m src.experts.build_experts
@@ -82,14 +32,19 @@ python -m src.experts.build_experts
 **Outputs:**
 
 * `expert.csv`: expert predictions
-* Comparison plot *Expert vs Ground Truth*
+* Comparison plot: *Experts vs Ground Truth*
 
----
+Add regime features to `experts.csv`.
+Expected columns:
 
-### 2. 24-Hour Predictions
+```
+Date_Heure|y_true|randomforest|lgbm|elasticnet|ret_1|ret_24|vol_24|mom_24|hour_sin|hour_cos|Wind_Norm|Wind_mean_3h|wind_std_3h|wind_cv_3h|Wind_Norm_lag_1h|Wind_Norm_lag_24h
+```
+
+### 2. 24-Hour Predictions (Optional)
 
 ```bash
-python -m src.expertsprediction_for_24h
+python -m src.experts.prediction_for_24h
 ```
 
 **Output:**
@@ -98,85 +53,45 @@ python -m src.expertsprediction_for_24h
 
 ---
 
-## Expert Aggregation (MOE)
-Add regime features in experts.csv :
+## Expert Aggregation (MoE)
+
+Ensure regime features are added to `experts.csv`.
+
 ```bash
-python -m src.opera.regime
+python -m src.opera.moe
 ```
-Aggregate
+
+## Expert Aggregation (HMoE) – Trend (bear/bull) + Wind (high/low)
+
+Set in `hmoe.py`:
+
+* `model` (FTRL, BOA, …)
+* `history`
+* `forecast` horizon
+
 ```bash
 python -m src.opera.hmoe
 ```
 
-## Evaluate models
+## Model Evaluation
 
-### Evaluation Protocol
+### HMoE Evaluation
 
-The evaluation is performed on 10% of the dataset `data_engineering_belgique.csv`.
+Evaluates only the **t+1 prediction** and compares it with experts.
 
-The test data is split into 24-hour windows (i.e., 24 consecutive values). To preserve and increase disparity of data and reduce computational cost. (because at each step we performed on 24 consecutive values - ie day ahead)
+Set:
 
-For each step:
-* A value is observed.
-* A prediction is made using **online learning over a 24-value horizon**, either based on the previous prediction or updated model parameters.
-* A Mixture of Experts (MoE) is then applied to combine the experts’ predictions.
-* The predictions from individual experts and from the MoE are compared to the true values to compute the error.
-
-### Evaluation Metrics
-
-The following metrics are used:
-
-* **RMSE** (Root Mean Squared Error)
-* **MAE** (Mean Absolute Error)
-* **R²** (Coefficient of Determination)
-
----
-
-### Baseline: OPERA
-
-To run the OPERA baseline evaluation:
-
-```bash
-python -m src.eval.moe
-```
-
----
-
-### HMOE (Regime bear/bull)
-
-### Step 1: Add Market Regimes
-
-Before running HMOE, market regimes (e.g., **bear / bull**) must be added to the dataset.
-
-!! Make sure to update the dataset path if needed:
-`data/processed_data/data_engineering_belgique.csv`
-
-```bash
-python -m src.opera.regime
-```
-
-### Step 2: Run HMOE Evaluation
+* `model` (FTRL, BOA, …)
+* `history`
+* `test_step`: prediction and evaluation frequency
 
 ```bash
 python -m src.eval.hmoe
 ```
 
----
+**Metrics:**
+MAE_mean, MAE_std, MAE_p90, MAE_p95, MAE_max, MAE_iqr
 
-### Full Comparison
+**Output:**
+`eval_hmoe_vs_experts.csv`
 
-To evaluate and compare:
-
-* Individual experts (**ElasticNet, Random Forest, LGBM**)
-* OPERA baseline (MoE)
-* HMOE with market regimes (bear/bull)
-
-run:
-
-```bash
-python -m src.eval.moe_vs_hmoe_vs_experts
-```
-
-Output files save in csv in /eval
-
----
