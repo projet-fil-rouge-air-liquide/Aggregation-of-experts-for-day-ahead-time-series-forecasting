@@ -28,11 +28,18 @@ def prepare_features(df):
     experts = df[["randomforest", "lgbm", "elasticnet"]]
 
     regime_features = {
-        "trend": df[["ret_1", "ret_24", "vol_24", "mom_24", "hour_sin", "hour_cos"]],
-        "wind": df[[
-            "Wind_Norm", "Wind_mean_3h", "wind_std_3h",
-            "wind_cv_3h", "Wind_Norm_lag_1h", "Wind_Norm_lag_24h"
-        ]]
+    "trend": df[[
+        "trend_strength",
+        "mom_24",
+        "mom_48",
+        "vol_24",
+    ]],
+    "wind": df[[
+        "Wind_Norm",
+        "Wind_mean_3h",
+        "Wind_Norm_lag_1h", 
+        "Wind_Norm_lag_24h"
+    ]]
     }
 
     valid_idx = (
@@ -55,7 +62,7 @@ def train_hmoe(df, idx_train, model):
         name="trend",
         regimes=["bull", "bear"],
         gate=SoftmaxGate(2),
-        prior=TrendRegime(),
+        prior=TrendRegime(trend_idx=0),
     )
 
     wind_std = np.std(regime_features["wind"].iloc[idx_train, 0].values) # std for wind_norm
@@ -144,7 +151,7 @@ def rolling_forecast_24h(hmoe, df_last24, experts, regime_features):
 
     return preds
 
-def plot_24h_forecast(df_last24, experts_last24, y_pred):
+def plot_24h_forecast(df_last24, experts_last24, y_pred, forecast):
     plt.figure(figsize=(15, 7))
 
     plt.plot(
@@ -170,7 +177,7 @@ def plot_24h_forecast(df_last24, experts_last24, y_pred):
         label="HMoE prediction",
     )
 
-    plt.title("24h forecast – HMoE (trend + wind)")
+    plt.title(f"{forecast}h forecast – HMoE (trend + wind)")
     plt.legend()
     plt.grid(alpha=0.3)
     plt.tight_layout()
@@ -195,35 +202,33 @@ def extract_regime_probs(hmoe, df, regime_features):
 
 
 def plot_regime_probs(probs_df, df_slice):
-    fig, axes = plt.subplots(3,1, sharex=True)
+    def minmax_norm(s):
+        return (s - s.min()) / (s.max() - s.min())
 
-    axes[0].plot(
-        df_slice["Date_Heure"],
-        probs_df["trend_bull"],
-        label="Bull"
-    )
-    axes[0].plot(
-        df_slice["Date_Heure"],
-        probs_df["trend_bear"],
-        label="Bear"
-    )
+    fig, axes = plt.subplots(4, 1, sharex=True, figsize=(12, 8))
 
-    axes[1].plot(
-        df_slice["Date_Heure"],
-        probs_df["wind_low"],
-        label="Low wind"
-    )
-    axes[1].plot(
-        df_slice["Date_Heure"],
-        probs_df["wind_high"],
-        label="High wind"
-    )
+    axes[0].plot(df_slice["Date_Heure"], minmax_norm(df_slice["trend_strength"]), label="Trend Strength")
+    axes[0].plot(df_slice["Date_Heure"], minmax_norm(df_slice["mom_48"]), label="Momentum 48h")
+    axes[0].plot(df_slice["Date_Heure"], minmax_norm(df_slice["mom_24"]), label="Momentum 24h")
+    axes[0].plot(df_slice["Date_Heure"], minmax_norm(df_slice["vol_24"]), label="Volatility 24h")
+    axes[0].set_ylim(0, 1)
 
-    axes[2].plot(
-        df_slice["Date_Heure"],
-        df_slice["Wind_Norm"],
-        label="wind_norm"
-    )
+    axes[1].plot(df_slice["Date_Heure"], probs_df["trend_bull"], label="Bull", color="g")
+    axes[1].plot(df_slice["Date_Heure"], probs_df["trend_bear"], label="Bear", color="b")
+
+    axes[2].plot(df_slice["Date_Heure"], probs_df["wind_high"], label="High wind", color="g")
+    axes[2].plot(df_slice["Date_Heure"], probs_df["wind_low"], label="Low wind", color="b")
+
+    axes[3].plot(df_slice["Date_Heure"], df_slice["Wind_Norm"], label="Wind Norm")
+    axes[3].plot(
+        df_slice["Date_Heure"], 
+        np.full(len(df_slice), 
+        df_slice["Wind_Norm"].mean()), 
+        label="Mean Wind Norm", color="r", linestyle="--")
+    axes[3].plot(df_slice["Date_Heure"], df_slice["Wind_Norm"], label="wind norm")
+    axes[3].plot(df_slice["Date_Heure"], df_slice["Wind_mean_3h"], label="wind mean 3h")
+    axes[3].plot(df_slice["Date_Heure"], df_slice["Wind_Norm_lag_1h"], label="norm lag 1h")
+    axes[3].plot(df_slice["Date_Heure"], df_slice["Wind_Norm_lag_24h"], label="norm lag 24h")
 
     for ax in axes:
         ax.legend()
@@ -233,10 +238,10 @@ def plot_regime_probs(probs_df, df_slice):
     plt.show()
 
 def main():
-    df = pd.read_csv("data/experts/experts.csv")
-    forecast = 48
-    history = 4500
-    model = "FTRL" # MLpol, MLprod, BOA, FTRL
+    df = pd.read_csv("data/experts/experts_feat.csv")
+    forecast = 100
+    history = 6500 # 4500
+    model = "BOA" # MLpol, MLprod, BOA, FTRL
     
     targets, experts, regime_features, valid_idx = prepare_features(df)
 
@@ -265,10 +270,11 @@ def main():
         df_last24,
         df_last24[experts.columns],
         y_pred_24h,
+        forecast
     )
 
     probs_df = extract_regime_probs(hmoe, df_last24, regime_features)
-    print(probs_df.describe())
+    # print(probs_df.describe())
     plot_regime_probs(probs_df, df_last24)
     
 

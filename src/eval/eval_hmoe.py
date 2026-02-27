@@ -6,66 +6,78 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error
 from src.opera.hmoe import prepare_features, train_hmoe, predict_hmoe
 
 def main():
-    df = pd.read_csv("data/experts/experts.csv")
+    df = pd.read_csv("data/experts/experts_feat.csv")
 
     targets, experts, regime_features, valid_idx = prepare_features(df)
 
-    history = 4500
-    test_step = 10
+    history = 6500
+    test_step = 5
     model = "FTRL"
 
-    preds_hmoe, preds_rf, preds_lgbm, preds_en = [], [], [], []
-    y_true_list = []
+    errors = {
+        "HMoE": [],
+        "RF": [],
+        "LGBM": [],
+        "EN": [],
+    }
+
+    mape_errors = {
+        "HMoE": [],
+        "RF": [],
+        "LGBM": [],
+        "EN": [],
+    }
 
     for t in tqdm(range(history, len(valid_idx) - 1, test_step), desc="Evaluation"):
         idx_train = valid_idx[t - history : t]
         idx_test = valid_idx[t + 1]
 
-        # train
         hmoe = train_hmoe(df, idx_train, model)
 
-        # predict
-        y_pred = predict_hmoe(hmoe, df, idx_test)
         y_true = targets.loc[idx_test]
 
-        preds_hmoe.append(y_pred)
-        preds_rf.append(experts.loc[idx_test, "randomforest"])
-        preds_lgbm.append(experts.loc[idx_test, "lgbm"])
-        preds_en.append(experts.loc[idx_test, "elasticnet"])
-        y_true_list.append(y_true)
+        preds = {
+            "HMoE": predict_hmoe(hmoe, df, idx_test),
+            "RF": experts.loc[idx_test, "randomforest"],
+            "LGBM": experts.loc[idx_test, "lgbm"],
+            "EN": experts.loc[idx_test, "elasticnet"],
+        }
 
-    # METRICS
-    y_true_arr = np.array(y_true_list)
+        for name, y_pred in preds.items():
+            err = y_true - y_pred
+            errors[name].append(err)
+            mape_errors[name].append(
+                np.abs(err / np.clip(y_true, 1e-8, None))
+            )
 
     results = []
 
-    for name, y_pred in {
-        "HMoE": preds_hmoe,
-        "RF": preds_rf,
-        "LGBM": preds_lgbm,
-        "EN": preds_en,
-    }.items():
-
-        y_pred_arr = np.array(y_pred)
-        err = y_true_arr - y_pred_arr
+    for name in errors.keys():
+        err = np.array(errors[name])
         abs_err = np.abs(err)
+        sq_err = err ** 2
+
+        mape = np.abs(err) / np.maximum(np.abs(y_true), 1e-8)
 
         results.append({
             "model": name,
 
-            # Central tendency
+            # MAE
             "MAE_mean": abs_err.mean(),
-            "MAE_std": abs_err.std(),
-
-            # Tail risk
-            "MAE_p90": np.quantile(abs_err, 0.90),
+            "MAE_var": abs_err.var(),
             "MAE_p95": np.quantile(abs_err, 0.95),
-            "MAE_max": abs_err.max(),
 
-            # interquartile range
-            "MAE_iqr": np.quantile(abs_err, 0.75) - np.quantile(abs_err, 0.25),
+            # RMSE
+            "RMSE_mean": np.sqrt(sq_err.mean()),
+            "RMSE_var": np.sqrt(sq_err.var()),
+            "RMSE_p95": np.sqrt(np.quantile(sq_err, 0.95)),
+
+            # MAPE
+            "MAPE_mean": mape.mean() * 100,
+            "MAPE_var": mape.var() * 100,
+            "MAPE_p95": np.quantile(mape, 0.95) * 100,
         })
-        
+
     results_df = pd.DataFrame(results)
     results_df.to_csv("data/eval/eval_hmoe_vs_experts.csv", index=False)
 
