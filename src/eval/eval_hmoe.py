@@ -5,44 +5,15 @@ from tqdm import tqdm
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from src.opera.hmoe import prepare_features, train_hmoe, predict_hmoe
 
-def compute_metrics(y_true, y_pred):
-    """Calcule les métriques MAE, RMSE et MAPE avec moyenne, variance et p95."""
-    err = y_true - y_pred
-    abs_err = np.abs(err)
-    sq_err = err ** 2
-    mape = np.abs(err / np.clip(y_true, 1e-8, None))
-
-    # MAE
-    mae_mean = abs_err.mean()
-    mae_var = abs_err.var()
-    mae_p95 = np.quantile(abs_err, 0.95)
-
-    # RMSE
-    rmse_mean = np.sqrt(sq_err.mean())
-    rmse_var = sq_err.var()
-    rmse_p95 = np.sqrt(np.quantile(sq_err, 0.95))
-
-    # MAPE (%)
-    mape_mean = mape.mean() * 100
-    mape_var = mape.var() * 100
-    mape_p95 = np.quantile(mape, 0.95) * 100
-
-    return {
-        "MAE_mean": mae_mean, "MAE_var": mae_var, "MAE_p95": mae_p95,
-        "RMSE_mean": rmse_mean, "RMSE_var": rmse_var, "RMSE_p95": rmse_p95,
-        "MAPE_mean": mape_mean, "MAPE_var": mape_var, "MAPE_p95": mape_p95,
-    }
-
 def main():
     df = pd.read_csv("data/experts/experts_feat.csv")
 
     targets, experts, regime_features, valid_idx = prepare_features(df)
 
     history = 6500
-    test_step = 3 # 5
+    test_step = 5
     model = "FTRL"
 
-    # stockage des erreurs
     errors = {
         "HMoE": [],
         "RF": [],
@@ -85,7 +56,8 @@ def main():
         err = np.array(errors[name])
         abs_err = np.abs(err)
         sq_err = err ** 2
-        mape = np.array(mape_errors[name])
+
+        mape = np.abs(err) / np.maximum(np.abs(y_true), 1e-8)
 
         results.append({
             "model": name,
@@ -97,7 +69,7 @@ def main():
 
             # RMSE
             "RMSE_mean": np.sqrt(sq_err.mean()),
-            "RMSE_var": sq_err.var(),
+            "RMSE_var": np.sqrt(sq_err.var()),
             "RMSE_p95": np.sqrt(np.quantile(sq_err, 0.95)),
 
             # MAPE
