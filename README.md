@@ -35,10 +35,13 @@ python -m src.experts.build_experts
 * Comparison plot: *Experts vs Ground Truth*
 
 Add regime features to `experts.csv`.
-Expected columns:
-
+```bash
+python -m src.experts.add_feature_regimes
 ```
-Date_Heure|y_true|randomforest|lgbm|elasticnet|ret_1|ret_24|vol_24|mom_24|hour_sin|hour_cos|Wind_Norm|Wind_mean_3h|wind_std_3h|wind_cv_3h|Wind_Norm_lag_1h|Wind_Norm_lag_24h
+**Output**: `experts_features.csv`
+Expected columns:
+```
+Date_Heure|y_true|randomforest|lgbm|elasticnet|mom_24|mom_48|vol_12|vol_24|trend_strength|Wind_Norm|Wind_mean_3h|Wind_Norm_lag_1h|Wind_Norm_lag_24h
 ```
 
 ### 2. 24-Hour Predictions (Optional)
