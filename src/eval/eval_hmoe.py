@@ -6,13 +6,14 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error
 from src.opera.hmoe import prepare_features, train_hmoe, predict_hmoe
 
 def main():
-    df = pd.read_csv("data/experts/experts_feat.csv")
+    df = pd.read_csv("data/experts/experts_features.csv")
 
     targets, experts, regime_features, valid_idx = prepare_features(df)
 
     history = 6500
-    test_step = 5
-    model = "FTRL"
+    test_step = 350
+    model = "BOA" # MLpol, MLprod, BOA, FTRL
+    context = {} # ("trend", "wind")
 
     errors = {
         "HMoE": [],
@@ -32,7 +33,7 @@ def main():
         idx_train = valid_idx[t - history : t]
         idx_test = valid_idx[t + 1]
 
-        hmoe = train_hmoe(df, idx_train, model)
+        hmoe = train_hmoe(df, idx_train, model, context)
 
         y_true = targets.loc[idx_test]
 

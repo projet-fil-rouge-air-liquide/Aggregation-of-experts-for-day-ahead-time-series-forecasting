@@ -60,6 +60,13 @@ features = features.merge(
     how="left"
 )
 
+# --- Test add experts ---
+features["randomforest_plus"] = experts["randomforest"] + 300
+
+features["lgbm_minus"] = experts["lgbm"] - 200
+
+##########################
+
 # Export
 final_data = pd.concat(
     [

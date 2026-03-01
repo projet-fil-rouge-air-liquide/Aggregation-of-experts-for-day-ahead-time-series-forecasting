@@ -56,29 +56,20 @@ python -m src.experts.prediction_for_24h
 
 ---
 
-## Expert Aggregation (MoE)
-
-Ensure regime features are added to `experts.csv`.
-
-```bash
-python -m src.opera.moe
-```
-
-## Expert Aggregation (HMoE) – Trend (bear/bull) + Wind (high/low)
+## Expert Aggregation - MoE / HMoE (context: trend / wind...)
 
 Set in `hmoe.py`:
 
 * `model` (FTRL, BOA, …)
 * `history`
 * `forecast` horizon
+* `context` (trend, wind...) set to {} for MoE baseline
 
 ```bash
 python -m src.opera.hmoe
 ```
 
-## Model Evaluation
-
-### HMoE Evaluation
+## Evaluation
 
 Evaluates only the **t+1 prediction** and compares it with experts.
 
@@ -87,13 +78,19 @@ Set:
 * `model` (FTRL, BOA, …)
 * `history`
 * `test_step`: prediction and evaluation frequency
+* `context`
 
 ```bash
 python -m src.eval.hmoe
 ```
 
 **Metrics:**
-MAE_mean, MAE_std, MAE_p90, MAE_p95, MAE_max, MAE_iqr
+```
+MAE   : mean | std | p95 
+RMSE  : mean | std | p95
+MAPE  : mean | std | p95 
+```
+
 
 **Output:**
 `eval_hmoe_vs_experts.csv`

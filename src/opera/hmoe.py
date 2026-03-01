@@ -25,7 +25,7 @@ def print_regime_probs(hmoe, regime_features_t):
 def prepare_features(df):
     targets = df["y_true"]
 
-    experts = df[["randomforest", "lgbm", "elasticnet"]]
+    experts = df[["randomforest", "lgbm", "elasticnet", "randomforest_plus", "lgbm_minus"]]
 
     regime_features = {
     "trend": df[[
@@ -51,51 +51,50 @@ def prepare_features(df):
 
     return targets, experts, regime_features, valid_idx
 
-def train_hmoe(df, idx_train, model):
+def train_hmoe(df, idx_train, model, context=("trend", "wind")):
     targets, experts, regime_features, _ = prepare_features(df)
 
     y_train = targets.loc[idx_train]
     X_train = experts.loc[idx_train]
     regime_train = {k: v.loc[idx_train] for k, v in regime_features.items()}
+    regime_context = {}
+    if "trend" in context:
+        trend_regime = Regime(
+            name="trend",
+            regimes=["bull", "bear"],
+            gate=SoftmaxGate(2),
+            prior=TrendRegime(trend_idx=0),
+        )
+        regime_context["trend"] = trend_regime
+    
+    if "wind" in context:
+        wind_std = np.std(regime_features["wind"].iloc[idx_train, 0].values) # std for wind_norm
+        wind_mean = np.mean(regime_features["wind"].iloc[idx_train, 0].values)
+        low_th = wind_mean - wind_std/2
+        high_th = wind_mean + wind_std/2
 
-    trend_regime = Regime(
-        name="trend",
-        regimes=["bull", "bear"],
-        gate=SoftmaxGate(2),
-        prior=TrendRegime(trend_idx=0),
-    )
+        wind_regime = Regime(
+            name="wind",
+            regimes=["low", "high"],
+            gate=SoftmaxGate(2),
+            prior=WindRegime(wind_feature_idx=0, wind_mean=wind_mean, wind_std=wind_std),
+        )
+        regime_context["wind"] = wind_regime
 
-    wind_std = np.std(regime_features["wind"].iloc[idx_train, 0].values) # std for wind_norm
-    wind_mean = np.mean(regime_features["wind"].iloc[idx_train, 0].values)
-    low_th = wind_mean - wind_std/2
-    high_th = wind_mean + wind_std/2
-
-    wind_regime = Regime(
-        name="wind",
-        regimes=["low", "high"],
-        gate=SoftmaxGate(2),
-        prior=WindRegime(wind_feature_idx=0, wind_mean=wind_mean, wind_std=wind_std),
-    )
     if model=="FTRL":
         hmoe = HMoE(
             y=y_train,
             experts=X_train,
-            regime_context={
-                "trend": trend_regime,
-                "wind": wind_regime,
-            },
+            regime_context=regime_context,
             model="FTRL",
             loss_type="mse",
             parameters={"eta": 0.05, "l1": 0.0, "l2": 0.01},
         )
-    elif model in ["BOA", "MLprod", "MLpol"]:
+    elif model in {"BOA", "MLprod", "MLpol"}:
         hmoe = HMoE(
             y=y_train,
             experts=X_train,
-            regime_context={
-                "trend": trend_regime,
-                "wind": wind_regime,
-            },
+            regime_context=regime_context,
             model=model,
             loss_type="mse",
         )
@@ -238,17 +237,18 @@ def plot_regime_probs(probs_df, df_slice):
     plt.show()
 
 def main():
-    df = pd.read_csv("data/experts/experts_feat.csv")
+    df = pd.read_csv("data/experts/experts_features.csv")
     forecast = 100
-    history = 6500 # 4500
+    history = 6500 # 6500 / 4500
     model = "BOA" # MLpol, MLprod, BOA, FTRL
-    
+    context = ("trend", "wind") # {} -> Opera baseline
+
     targets, experts, regime_features, valid_idx = prepare_features(df)
 
     idx_train = valid_idx[-history-forecast:-forecast]
     df_last24 = df.loc[valid_idx[-forecast:]]
 
-    hmoe = train_hmoe(df, idx_train, model)
+    hmoe = train_hmoe(df, idx_train, model, context)
 
     y_pred_24h = rolling_forecast_24h(
         hmoe,
