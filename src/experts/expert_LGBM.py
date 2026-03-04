@@ -38,7 +38,8 @@ class LGBMExpert(BaseExpert):
             min_child_samples = self.min_child_samples,
             subsample = self.subsample,
             colsample_bytree = self.colsample_bytree,
-            random_state = self.random_state
+            random_state = self.random_state,
+            verbose = -1 #supprimer les warnings
         )
 
     def fit(self,X,y):

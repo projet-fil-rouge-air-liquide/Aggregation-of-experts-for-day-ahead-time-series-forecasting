@@ -80,7 +80,7 @@ agg_ridge_cv = RidgeCV(alphas=alpha_test,
 agg_ridge_cv.fit(X_val_agg,y_valid_flat)
 
 alpha_best = agg_ridge_cv.alpha_
-print('best alpha: ',alpha_best)
+print('Ridge best alpha: ',alpha_best)
 
 y_pred_agg_test, wape_agg, mae_agg, mse_agg, nmae_agg = predict_eval(
     agg_ridge_cv,
@@ -115,8 +115,8 @@ agg_lasso_cv = LassoCV(
 
 agg_lasso_cv.fit(X_val_agg,y_valid_flat)
 
-alpha_best = agg_lasso_cv.alpha_
-print('best alpha: ',alpha_best)
+#alpha_best = agg_lasso_cv.alpha_
+#print('best alpha: ',alpha_best)
 
 y_pred_agg_test, wape_agg, mae_agg_la, mse_agg, nmae_agg_la = predict_eval(
     agg_lasso_cv,
@@ -126,9 +126,20 @@ y_pred_agg_test, wape_agg, mae_agg_la, mse_agg, nmae_agg_la = predict_eval(
 )
 coef_lasso = agg_lasso_cv.coef_
 experts_conserves = np.sum(coef_lasso != 0)
-print(f"Meilleur alpha : {agg_lasso_cv.alpha_}")
+print(f"Lasso meilleur alpha : {agg_lasso_cv.alpha_}")
 print(f"Nombre d'experts conservés par le Lasso : {experts_conserves} / {len(coef_lasso)}")
 print(f"nMAE de l'agrégateur Lasso : {nmae_agg_la:.2f}%")
+
+# Liste des experts conservés avec leurs coefficients
+df_coef_lasso = pd.DataFrame({
+    'expert': [f"{exp.name}_{exp.features_name}" for exp in experts],
+    'coefficient': coef_lasso
+})
+df_coef_lasso = df_coef_lasso[df_coef_lasso['coefficient'] != 0].sort_values('coefficient', ascending=False)
+print("\nExperts conservés par le Lasso :")
+print(df_coef_lasso)
+
+
 # ---------------- création de l'agrégateur non linéaire  ---------------- #
 
 agg_rf = RandomForestRegressor(
