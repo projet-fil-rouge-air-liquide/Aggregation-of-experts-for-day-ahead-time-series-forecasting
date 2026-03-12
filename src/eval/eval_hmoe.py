@@ -6,27 +6,27 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error
 from src.opera.hmoe import prepare_features, train_hmoe, predict_hmoe
 
 def main():
-    df = pd.read_csv("data/experts/experts_features.csv")
+    df = pd.read_csv("data/experts/predictions_experts_spe_feat_10000.csv")
 
     targets, experts, regime_features, valid_idx = prepare_features(df)
 
-    history = 6500
-    test_step = 350
+    history = 8950 #5000
+    test_step = 3
     model = "BOA" # MLpol, MLprod, BOA, FTRL
-    context = {} # ("trend", "wind")
+    context = ("trend", "wind", "daynight") # {} ; ("trend", "wind", "daynight")
 
     errors = {
         "HMoE": [],
         "RF": [],
         "LGBM": [],
-        "EN": [],
+        "Ridge": [],
     }
 
     mape_errors = {
         "HMoE": [],
         "RF": [],
         "LGBM": [],
-        "EN": [],
+        "Ridge": [],
     }
 
     for t in tqdm(range(history, len(valid_idx) - 1, test_step), desc="Evaluation"):
@@ -39,9 +39,9 @@ def main():
 
         preds = {
             "HMoE": predict_hmoe(hmoe, df, idx_test),
-            "RF": experts.loc[idx_test, "randomforest"],
-            "LGBM": experts.loc[idx_test, "lgbm"],
-            "EN": experts.loc[idx_test, "elasticnet"],
+            "RF": experts.loc[idx_test, "RandomForest_Global"],
+            "LGBM": experts.loc[idx_test, "LGBM_Global"],
+            "Ridge": experts.loc[idx_test, "Ridge_Global"],
         }
 
         for name, y_pred in preds.items():
@@ -58,7 +58,7 @@ def main():
         abs_err = np.abs(err)
         sq_err = err ** 2
 
-        mape = np.abs(err) / np.maximum(np.abs(y_true), 1e-8)
+        mape = np.array(mape_errors[name])
 
         results.append({
             "model": name,
@@ -80,7 +80,7 @@ def main():
         })
 
     results_df = pd.DataFrame(results)
-    results_df.to_csv("data/eval/eval_hmoe_vs_experts.csv", index=False)
+    results_df.to_csv("data/eval/eval_moe_vs_experts_hist-9000.csv", index=False)
 
     print(results_df)
 
