@@ -4,8 +4,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 from src.opera.mixture import HMoE
-from src.opera.regime import Regime, SoftmaxGate, WindRegime, TrendRegime
-
+from src.opera.regime import Regime, SoftmaxGate, TrendRegime, DayNightRegime, WindRegime
 
 # DEBUG / ANALYSIS
 def print_expert_weights(hmoe, expert_names):
@@ -15,17 +14,55 @@ def print_expert_weights(hmoe, expert_names):
         for name, wi in zip(expert_names, w):
             print(f"{name:15s} | w = {wi:.4f}")
 
-def print_regime_probs(hmoe, regime_features_t):
-    print("\n=== REGIME PROBABILITIES ===")
-    for name, context in hmoe.regime_context.items():
-        p = context.predict(regime_features_t[name])
-        for r, pr in zip(context.regimes, p):
-            print(f"{name:6s} | {r:5s} = {pr:.3f}")
-
 def prepare_features(df):
     targets = df["y_true"]
 
-    experts = df[["randomforest", "lgbm", "elasticnet", "randomforest_plus", "lgbm_minus"]]
+    experts = df[[
+        "LGBM_Global",
+        "Ridge_Global",
+        "RandomForest_Global",
+        # "Ridge_Global_all_orient",
+        # "RandomForest_Global_all_orient",
+        # "LGBM_Global_all_orient",
+        # "Ridge_Global_all_wind",
+        # "RandomForest_Global_all_wind",
+        # "LGBM_Global_all_wind",
+        # "Ridge_Wind_orientation_NE",
+        # "RandomForest_Wind_orientation_NE",
+        # "LGBM_Wind_orientation_NE",
+        # "Ridge_Wind_orientation_SE",
+        # "RandomForest_Wind_orientation_SE",
+        # "LGBM_Wind_orientation_SE",
+        # "Ridge_Wind_orientation_NW",
+        # "RandomForest_Wind_orientation_NW",
+        # "LGBM_Wind_orientation_NW",
+        # "Ridge_Wind_orientation_SW",
+        # "RandomForest_Wind_orientation_SW",
+        # "LGBM_Wind_orientation_SW",
+        # "Ridge_Night",
+        # "RandomForest_Night",
+        # "LGBM_Night",
+        # "Ridge_Day",
+        # "RandomForest_Day",
+        # "LGBM_Day",
+        # "Ridge_Wind_Low",
+        # "RandomForest_Wind_Low",
+        # "LGBM_Wind_Low",
+        # "Ridge_Wind_Med",
+        # "RandomForest_Wind_Med",
+        # "LGBM_Wind_Med",
+        # "Ridge_Wind_High",
+        # "RandomForest_Wind_High",
+        # "LGBM_Wind_High",
+        # "Ridge_Synoptique",
+        # "RandomForest_Synoptique",
+        # "LGBM_Synoptique",
+        # "Ridge_Stationnar",
+        # "RandomForest_Stationnar",
+        # "LGBM_Stationnar"
+        ]]
+
+    df["hour"] = pd.to_datetime(df["Date_Heure"]).dt.hour
 
     regime_features = {
     "trend": df[[
@@ -39,6 +76,9 @@ def prepare_features(df):
         "Wind_mean_3h",
         "Wind_Norm_lag_1h", 
         "Wind_Norm_lag_24h"
+    ]],
+    "daynight": df[[
+        "hour"
     ]]
     }
 
@@ -47,39 +87,52 @@ def prepare_features(df):
         .intersection(experts.dropna().index)
         .intersection(regime_features["trend"].dropna().index)
         .intersection(regime_features["wind"].dropna().index)
+        .intersection(regime_features["daynight"].dropna().index)
     )
 
     return targets, experts, regime_features, valid_idx
 
 def train_hmoe(df, idx_train, model, context=("trend", "wind")):
     targets, experts, regime_features, _ = prepare_features(df)
-
     y_train = targets.loc[idx_train]
     X_train = experts.loc[idx_train]
     regime_train = {k: v.loc[idx_train] for k, v in regime_features.items()}
     regime_context = {}
+
     if "trend" in context:
         trend_regime = Regime(
             name="trend",
             regimes=["bull", "bear"],
-            gate=SoftmaxGate(2),
+            predictor=SoftmaxGate(2),
             prior=TrendRegime(trend_idx=0),
         )
         regime_context["trend"] = trend_regime
-    
-    if "wind" in context:
-        wind_std = np.std(regime_features["wind"].iloc[idx_train, 0].values) # std for wind_norm
-        wind_mean = np.mean(regime_features["wind"].iloc[idx_train, 0].values)
-        low_th = wind_mean - wind_std/2
-        high_th = wind_mean + wind_std/2
 
+    if "wind" in context:
+        wind_std = np.std(regime_features["wind"].iloc[idx_train, 0].values)
+        wind_mean = np.mean(regime_features["wind"].iloc[idx_train, 0].values)
         wind_regime = Regime(
             name="wind",
             regimes=["low", "high"],
-            gate=SoftmaxGate(2),
-            prior=WindRegime(wind_feature_idx=0, wind_mean=wind_mean, wind_std=wind_std),
+            predictor=WindRegime(
+                wind_feature_idx=0,
+                wind_mean=wind_mean,
+                wind_std=wind_std,
+                strength=2.0
+            ),
+            prior=None
         )
         regime_context["wind"] = wind_regime
+
+    if "daynight" in context:
+        daynight_regime = Regime(
+            name="daynight",
+            regimes=["day", "night"],
+            predictor=DayNightRegime(hour_idx=0),
+            prior=None
+        )
+        regime_context["daynight"] = daynight_regime
+
 
     if model=="FTRL":
         hmoe = HMoE(
@@ -88,7 +141,7 @@ def train_hmoe(df, idx_train, model, context=("trend", "wind")):
             regime_context=regime_context,
             model="FTRL",
             loss_type="mse",
-            parameters={"eta": 0.05, "l1": 0.0, "l2": 0.01},
+            parameters={"eta": 0.01, "l1": 0.0, "l2": 0.01},
         )
     elif model in {"BOA", "MLprod", "MLpol"}:
         hmoe = HMoE(
@@ -227,7 +280,6 @@ def plot_regime_probs(probs_df, df_slice):
     axes[3].plot(df_slice["Date_Heure"], df_slice["Wind_Norm"], label="wind norm")
     axes[3].plot(df_slice["Date_Heure"], df_slice["Wind_mean_3h"], label="wind mean 3h")
     axes[3].plot(df_slice["Date_Heure"], df_slice["Wind_Norm_lag_1h"], label="norm lag 1h")
-    axes[3].plot(df_slice["Date_Heure"], df_slice["Wind_Norm_lag_24h"], label="norm lag 24h")
 
     for ax in axes:
         ax.legend()
@@ -236,12 +288,63 @@ def plot_regime_probs(probs_df, df_slice):
     plt.tight_layout()
     plt.show()
 
+def compute_effective_weights(hmoe, df_slice, experts, regime_features):
+
+    rows = []
+
+    for idx in df_slice.index:
+
+        regime_probs = {}
+
+        for name, context in hmoe.regime_context.items():
+            p = context.predict(regime_features[name].loc[idx].values)
+            regime_probs[name] = dict(zip(context.regimes, p))
+
+        row = {"index": idx}
+
+        for expert_i, expert_name in enumerate(experts.columns):
+
+            w_eff = 0
+
+            for regime_tuple, mixture in hmoe.experts_by_regime.items():
+
+                prob = 1
+                for regime_name, regime_value in zip(hmoe.regime_context.keys(), regime_tuple):
+                    prob *= regime_probs[regime_name][regime_value]
+
+                w_eff += prob * mixture.w[expert_i]
+
+            row[expert_name] = w_eff
+
+        rows.append(row)
+
+    return pd.DataFrame(rows).set_index("index")
+
+def plot_effective_weights(weights_eff, df_slice):
+
+    plt.figure(figsize=(14,6))
+
+    for col in weights_eff.columns:
+        plt.plot(
+            df_slice["Date_Heure"],
+            weights_eff[col],
+            label=col,
+            lw=2
+        )
+
+    plt.title("Effective expert weights")
+    plt.ylabel("Weight")
+    plt.legend()
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+
 def main():
-    df = pd.read_csv("data/experts/experts_features.csv")
+    df = pd.read_csv("data/experts/predictions_experts_spe_feat.csv")
     forecast = 100
-    history = 6500 # 6500 / 4500
+    history = 5000 # 6500 / 4500
     model = "BOA" # MLpol, MLprod, BOA, FTRL
-    context = ("trend", "wind") # {} -> Opera baseline
+    context = ("trend", "wind", "daynight") # {} -> Opera baseline ; ("trend", "wind", "daynight")
 
     targets, experts, regime_features, valid_idx = prepare_features(df)
 
@@ -264,7 +367,6 @@ def main():
         k: v.loc[df_last24.index[-1]].values
         for k, v in regime_features.items()
     }
-    print_regime_probs(hmoe, last_regime_feats)
 
     plot_24h_forecast(
         df_last24,
@@ -274,9 +376,17 @@ def main():
     )
 
     probs_df = extract_regime_probs(hmoe, df_last24, regime_features)
-    # print(probs_df.describe())
-    plot_regime_probs(probs_df, df_last24)
-    
+
+    # plot_regime_probs(probs_df, df_last24)
+
+    weights_eff = compute_effective_weights(
+        hmoe,
+        df_last24,
+        experts,
+        regime_features
+    )
+
+    plot_effective_weights(weights_eff, df_last24)
 
 
 if __name__ == "__main__":

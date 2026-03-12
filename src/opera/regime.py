@@ -10,7 +10,7 @@ class RegimePrior:
         return losses
 
 class SoftmaxGate:
-    def __init__(self, n_outputs, lr=0.01, temp=2.0, eps=0.1, beta=0.01):
+    def __init__(self, n_outputs, lr=0.01, temp=1.0, eps=0.1, beta=0.0):
         self.n_outputs = n_outputs
         self.lr = lr
         self.temp = temp
@@ -95,62 +95,82 @@ class TrendRegime(RegimePrior):
 
         return losses, self.prev_probs
 
-class WindRegime(RegimePrior):
-    def __init__(self, wind_feature_idx, wind_mean, wind_std, strength=0.5):
+############################
+# -- Determinist Regime -- #
+############################
+
+class DayNightRegime:
+    def __init__(self, hour_idx=0, day_start=6, day_end=21):
+        self.idx = hour_idx
+        self.day_start = day_start
+        self.day_end = day_end
+
+    def predict(self, features):
+        hour = float(features[self.idx])
+        is_day = (hour >= self.day_start) and (hour < self.day_end)
+
+        if is_day:
+            return np.array([1.0, 0.0])  # day
+        else:
+            return np.array([0.0, 1.0])  # night
+
+    def bias(self, losses, features):
+        losses = losses.copy()
+        hour = float(features[self.idx])
+        is_day = (hour >= self.day_start) and (hour < self.day_end)
+
+        if is_day:
+            losses[0] -= 1.0
+            losses[1] += 1.0
+        else:
+            losses[0] += 1.0
+            losses[1] -= 1.0
+
+        return losses, self.predict(features)
+
+class WindRegime:
+    def __init__(self, wind_feature_idx, wind_mean, wind_std, strength=2.0):
         self.idx = wind_feature_idx
         self.mean = float(wind_mean)
         self.std = float(wind_std)
         self.strength = float(strength)
+        self.low_th = self.mean - self.std
+        self.high_th = self.mean + self.std
+
+    def predict(self, features):
+        wind = float(features[self.idx])
+
+        if wind > self.high_th:
+            return np.array([0.0, 1.0])  # high
+        elif wind < self.low_th:
+            return np.array([1.0, 0.0])  # low
+        else:
+            return np.array([0.5, 0.5])  # med
 
     def bias(self, losses, features):
         losses = losses.copy()
-
         wind = float(features[self.idx])
-        z = (wind - self.mean) / (self.std + 1e-8)
-        z = np.clip(z, -3.0, 3.0)
 
-        s = np.tanh(z)
-        confidence = abs(s)
+        if wind > self.high_th:
+            losses[0] += self.strength
+            losses[1] -= self.strength
+        elif wind < self.low_th:
+            losses[0] -= self.strength
+            losses[1] += self.strength
 
-        if confidence <= 0.1:
-            return losses, np.array([0.5, 0.5])
-
-        direction = 1.0 if s > 0 else -1.0
-        bias = self.strength * confidence
-
-        # index 0 = low wind, index 1 = high wind
-        losses[0] += direction * bias
-        losses[1] -= direction * bias
-
-        shift = 0.5 * confidence
-        p_high = np.clip(0.5 + direction * shift, 0.0, 1.0)
-        p_target = np.array([1.0 - p_high, p_high], dtype=np.float32)
-
-        return losses, p_target
+        return losses, self.predict(features)
 
 class Regime:
-    """
-    represents one latent dimension of the environment
-    (e.g. trend, wind, volatility).
-
-    It wraps a gate and exposes a uniform interface to HMoE.
-    """
-    def __init__(self, name, regimes, gate, prior=None):
-        """
-        name    : str, name of the axis ("trend", "wind", ...)
-        regimes : list[str], regime labels (["bull", "bear"])
-        gate    : SoftmaxGate
-        prior   : optional RegimePrior
-        """
+    def __init__(self, name, regimes, predictor, prior=None):
         self.name = name
         self.regimes = regimes
-        self.gate = gate
+        self.predictor = predictor
         self.prior = prior if prior is not None else RegimePrior()
 
     def predict(self, features):
-        """Return P(regime | features)."""
-        return self.gate.predict(features)
+        return self.predictor.predict(features)
 
     def update(self, features, losses):
-        losses, p_target = self.prior.bias(losses, features)
-        self.gate.update(features, losses, p_target)
+        if hasattr(self.predictor, "update"):
+            losses, p_target = self.prior.bias(losses, features)
+            self.predictor.update(features, losses, p_target, target_strength=50.0)
