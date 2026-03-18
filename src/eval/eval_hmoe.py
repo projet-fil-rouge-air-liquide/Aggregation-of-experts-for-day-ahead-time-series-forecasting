@@ -10,10 +10,10 @@ def main():
 
     targets, experts, regime_features, valid_idx = prepare_features(df)
 
-    history = 8950 #5000
-    test_step = 3
+    history = 5000 #5000
+    test_step = 50
     model = "BOA" # MLpol, MLprod, BOA, FTRL
-    context = ("trend", "wind", "daynight") # {} ; ("trend", "wind", "daynight")
+    context = {} # {} ; ("trend", "wind", "daynight")
 
     errors = {
         "HMoE": [],
@@ -58,7 +58,7 @@ def main():
         abs_err = np.abs(err)
         sq_err = err ** 2
 
-        mape = np.array(mape_errors[name])
+        mape = np.abs(err) / np.maximum(np.abs(y_true), 1e-8)
 
         results.append({
             "model": name,
@@ -80,7 +80,7 @@ def main():
         })
 
     results_df = pd.DataFrame(results)
-    results_df.to_csv("data/eval/eval_moe_vs_experts_hist-9000.csv", index=False)
+    results_df.to_csv("data/eval/test_eval_regimes_trend_moe.csv", index=False)
 
     print(results_df)
 

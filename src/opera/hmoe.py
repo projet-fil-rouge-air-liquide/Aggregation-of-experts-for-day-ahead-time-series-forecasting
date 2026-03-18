@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 from src.opera.mixture import HMoE
-from src.opera.regime import Regime, SoftmaxGate, TrendRegime, DayNightRegime, WindRegime
+from src.opera.regime import Regime, SoftmaxGate, UpDownRegime, BullBearRegime, DayNightRegime, WindRegime, VolatilityRegime
 
 # DEBUG / ANALYSIS
 def print_expert_weights(hmoe, expert_names):
@@ -65,22 +65,24 @@ def prepare_features(df):
     df["hour"] = pd.to_datetime(df["Date_Heure"]).dt.hour
 
     regime_features = {
-    "trend": df[[
-        "trend_strength",
-        "mom_24",
-        "mom_48",
-        "vol_24",
-    ]],
-    "wind": df[[
-        "Wind_Norm",
-        "Wind_mean_3h",
-        "Wind_Norm_lag_1h", 
-        "Wind_Norm_lag_24h"
-    ]],
-    "daynight": df[[
-        "hour"
-    ]]
+        "trend": df[[
+            "trend_strength",
+            "mom_24",
+            "mom_48",
+            "vol_24",
+        ]],
+        "wind": df[[
+            "Wind_Norm",
+            # "Wind_mean_3h",
+            # "Wind_Norm_lag_1h", 
+            # "Wind_Norm_lag_24h"
+        ]],
+        "daynight": df[[
+            "hour"
+        ]]
     }
+    regime_features["updown"] = regime_features["trend"]
+    regime_features["volatility"] = regime_features["trend"]
 
     valid_idx = (
         targets.dropna().index
@@ -104,9 +106,36 @@ def train_hmoe(df, idx_train, model, context=("trend", "wind")):
             name="trend",
             regimes=["bull", "bear"],
             predictor=SoftmaxGate(2),
-            prior=TrendRegime(trend_idx=0),
+            prior=BullBearRegime(),
         )
         regime_context["trend"] = trend_regime
+
+    if "updown" in context:
+        updown_regime = Regime(
+            name="updown",
+            regimes=["up", "down"],
+            predictor=SoftmaxGate(2),
+            prior=UpDownRegime(trend_idx=0),
+        )
+        regime_context["updown"] = updown_regime
+
+    if "volatility" in context:
+        vol_idx = regime_features["volatility"].columns.get_loc("vol_24")
+        vol_series = regime_features["volatility"].iloc[idx_train, vol_idx].values
+        low_th  = np.quantile(vol_series, 0.3)
+        high_th = np.quantile(vol_series, 0.7)
+        volatility_regime = Regime(
+            name="volatility",
+            regimes=["low_vol", "high_vol"],
+            predictor=SoftmaxGate(2),
+            prior=VolatilityRegime(
+                vol_idx=vol_idx,
+                low_th=low_th,
+                high_th=high_th,
+                strength=0.3
+            ),
+        )
+        regime_context["volatility"] = volatility_regime
 
     if "wind" in context:
         wind_std = np.std(regime_features["wind"].iloc[idx_train, 0].values)
@@ -344,7 +373,7 @@ def main():
     forecast = 100
     history = 5000 # 6500 / 4500
     model = "BOA" # MLpol, MLprod, BOA, FTRL
-    context = ("trend", "wind", "daynight") # {} -> Opera baseline ; ("trend", "wind", "daynight")
+    context = ("trend", "updown", "volatility") # {} -> Opera baseline ; ("trend", "updown", "wind", "volatility", "daynight") 
 
     targets, experts, regime_features, valid_idx = prepare_features(df)
 

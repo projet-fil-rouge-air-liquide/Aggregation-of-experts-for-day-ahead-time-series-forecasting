@@ -66,17 +66,87 @@ class SoftmaxGate:
         if p_target is not None:
             self.W -= self.lr * target_strength * x[:, None] * (p - p_target)[None, :]
 
-class TrendRegime(RegimePrior):
+class UpDownRegime(RegimePrior):
+    """
+    Trend Regime Up or Down (short term)
+    """
     def __init__(self, trend_idx, strength=0.2, inertia=0.8):
         self.idx = trend_idx
         self.strength = float(strength)
         self.inertia = float(inertia)
         self.prev_probs = np.array([0.5, 0.5])
 
-    def _bull_bear_strengths(self, features):
+    def _up_down_strengths(self, features):
         z = float(features[self.idx])
-        bull = np.tanh(np.maximum(z, 0.0))
-        bear = np.tanh(np.maximum(-z, 0.0))
+        up = np.tanh(np.maximum(z, 0.0))
+        down = np.tanh(np.maximum(-z, 0.0))
+        return up, down
+
+    def bias(self, losses, features):
+        losses = losses.copy()
+
+        up, down = self._up_down_strengths(features)
+
+        raw = np.array([up, down])
+        raw /= raw.sum() + 1e-8
+
+        self.prev_probs += (1.0 - self.inertia) * (raw - self.prev_probs)
+
+        directional = up - down
+        losses[0] -= self.strength * directional
+        losses[1] += self.strength * directional
+
+        return losses, self.prev_probs
+
+class BullBearRegime(RegimePrior):
+    """
+    Trend Regime Bull or Bear
+    """
+    def __init__(self, strength=0.2, inertia=0.95):
+        self.strength = float(strength)
+        self.inertia = float(inertia)
+
+        self.prev_probs = np.array([0.5, 0.5])
+
+        # long term memory
+        self.smooth_score = 0.0
+        self.alpha = 0.05
+
+        # thresholds
+        self.bull_th = 0.2
+        self.bear_th = -0.2
+
+    def _trend_score(self, features):
+        trend_strength, mom_24, mom_48, vol = features
+
+        score = (
+            0.5 * trend_strength +
+            0.3 * mom_48 +
+            0.2 * mom_24
+        )
+
+        # penality for high volatility (uncertainty)
+        score /= (1.0 + vol)
+
+        return score
+        
+    def _bull_bear_strengths(self, features):
+        score = self._trend_score(features)
+
+        self.smooth_score = (
+            (1 - self.alpha) * self.smooth_score +
+            self.alpha * score
+        )
+
+        s = self.smooth_score
+
+        if s > self.bull_th:
+            bull, bear = 1.0, 0.0
+        elif s < self.bear_th:
+            bull, bear = 0.0, 1.0
+        else:
+            bull, bear = 0.5, 0.5
+
         return bull, bear
 
     def bias(self, losses, features):
@@ -95,6 +165,31 @@ class TrendRegime(RegimePrior):
 
         return losses, self.prev_probs
 
+class VolatilityRegime(RegimePrior):
+    def __init__(self, vol_idx, low_th, high_th, strength=0.3):
+        self.idx = vol_idx
+        self.low_th = low_th
+        self.high_th = high_th
+        self.strength = strength
+
+    def bias(self, losses, features):
+        losses = losses.copy()
+        vol = float(features[self.idx])
+
+        if vol > self.high_th:
+            # regime high vol
+            losses[0] += self.strength
+            losses[1] -= self.strength
+            p = np.array([0.0, 1.0])
+        elif vol < self.low_th:
+            # regime low vol
+            losses[0] -= self.strength
+            losses[1] += self.strength
+            p = np.array([1.0, 0.0])
+        else:
+            p = np.array([0.5, 0.5])
+
+        return losses, p
 ############################
 # -- Determinist Regime -- #
 ############################
@@ -173,4 +268,4 @@ class Regime:
     def update(self, features, losses):
         if hasattr(self.predictor, "update"):
             losses, p_target = self.prior.bias(losses, features)
-            self.predictor.update(features, losses, p_target, target_strength=50.0)
+            self.predictor.update(features, losses, p_target, target_strength=5.0)
