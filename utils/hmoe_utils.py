@@ -11,20 +11,6 @@ def print_expert_weights(hmoe, expert_names):
             print(f"{name:15s} | w = {wi:.4f}")
 
 
-def predict_hmoe(hmoe, df, idx_test):
-    _, experts, regime_features, _ = prepare_features(df)
-
-    expert_t = experts.loc[[idx_test]]
-    regime_t = {
-        name: feats.loc[idx_test].values
-        for name, feats in regime_features.items()
-    }
-
-    return hmoe.predict(
-        expert_preds=expert_t,
-        regime_features=regime_t,
-    ).item()
-
 def rolling_forecast_24h(hmoe, df_last24, experts, regime_features):
     preds = []
 

@@ -192,12 +192,26 @@ def train_hmoe(df, idx_train, model, context=("trend", "wind")):
 
     return hmoe
 
+def predict_hmoe(hmoe, df, idx_test):
+    _, experts, regime_features, _ = prepare_features(df)
+
+    expert_t = experts.loc[[idx_test]]
+    regime_t = {
+        name: feats.loc[idx_test].values
+        for name, feats in regime_features.items()
+    }
+
+    return hmoe.predict(
+        expert_preds=expert_t,
+        regime_features=regime_t,
+    ).item()
+
 def main():
     df = pd.read_csv("data/experts/predictions_experts_spe_feat.csv")
     forecast = 100
     history = 5000 # 6500 / 4500
     model = "BOA" # MLpol, MLprod, BOA, FTRL
-    context = {} # {} -> Opera baseline ; avaible regimes -> ("trend", "updown", "wind", "volatility", "daynight") 
+    context = ("wind") # {} -> Opera baseline ; avaible regimes -> ("trend", "updown", "wind", "volatility", "daynight") 
 
     targets, experts, regime_features, valid_idx = prepare_features(df)
 
@@ -207,7 +221,7 @@ def main():
     hmoe = train_hmoe(df, idx_train, model, context)
 
     # DEBUG
-    print_expert_weights(hmoe, experts.columns)
+    # print_expert_weights(hmoe, experts.columns)
 
     y_pred_24h, weights_eff = rolling_forecast_online(
         hmoe,

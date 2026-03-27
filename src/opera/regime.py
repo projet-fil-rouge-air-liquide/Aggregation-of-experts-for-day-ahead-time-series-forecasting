@@ -10,29 +10,35 @@ class RegimePrior:
         return losses
 
 class SoftmaxGate:
-    def __init__(self, n_outputs, lr=0.01, temp=1.0, eps=0.1, beta=0.0):
+    def __init__(self, n_outputs, lr=0.01, temp=1.0, eps=0.1, beta=0.01):
         self.n_outputs = n_outputs
         self.lr = lr
         self.temp = temp
         self.eps = eps
         self.beta = beta
+
         self.W = None
+        self.b = None
+        self.velocity = None
 
     def _init(self, n_features):
         scale = 1.0 / np.sqrt(n_features)
         self.W = scale * np.random.randn(n_features, self.n_outputs).astype(np.float32)
+        self.b = np.zeros(self.n_outputs, dtype=np.float32)
+        self.velocity = np.zeros_like(self.W)
 
     def _forward(self, x):
         x = x.astype(np.float32)
-        x = x / (np.linalg.norm(x) + 1e-8)
 
-        logits = x @ self.W
+        logits = x @ self.W + self.b
         logits -= logits.max()
 
         exp = np.exp(logits / self.temp)
         p = exp / (exp.sum() + 1e-8)
 
+        # exploration smoothing
         p = self.eps / self.n_outputs + (1.0 - self.eps) * p
+
         return x, p
 
     def predict(self, x):
@@ -41,30 +47,43 @@ class SoftmaxGate:
         _, p = self._forward(x)
         return p
 
-    def update(self, x, losses, p_target=None, target_strength=1.0):
+    def update(self, x, losses, p_target=None, target_strength=0.5):
         if self.W is None:
             self._init(len(x))
 
         x, p = self._forward(x)
 
-        # robust loss normalization
-        losses = losses - losses.mean()
+        # ===== REGRET (meilleur signal) =====
+        losses = losses - np.min(losses)
+
+        # normalisation robuste
         losses /= (np.mean(np.abs(losses)) + 1e-8)
         losses = np.clip(losses, -3.0, 3.0)
 
         baseline = np.dot(p, losses)
         delta = losses - baseline
 
-        # policy gradient
-        self.W -= self.lr * x[:, None] * delta[None, :]
+        # ===== GRADIENT =====
+        grad = x[:, None] * delta[None, :]
 
-        # entropy regularization (stable)
+        # clipping
+        grad = np.clip(grad, -1.0, 1.0)
+
+        # momentum
+        self.velocity = 0.9 * self.velocity + 0.1 * grad
+        self.W -= self.lr * self.velocity
+
+        # ===== ENTROPY =====
         entropy_grad = p * (np.log(p + 1e-8) + 1.0)
         self.W -= self.lr * self.beta * x[:, None] * entropy_grad[None, :]
 
-        # optional target distribution
+        # ===== TARGET SOFT =====
         if p_target is not None:
+            p_target = 0.7 * p_target + 0.3 * p
             self.W -= self.lr * target_strength * x[:, None] * (p - p_target)[None, :]
+
+        # ===== TEMP DECAY =====
+        self.temp = max(0.3, self.temp * 0.999)
 
 class UpDownRegime(RegimePrior):
     """
@@ -195,33 +214,40 @@ class VolatilityRegime(RegimePrior):
 ############################
 
 class DayNightRegime:
-    def __init__(self, hour_idx=0, day_start=6, day_end=21):
+    def __init__(self, hour_idx=0, shift=6, strength=1.0):
         self.idx = hour_idx
-        self.day_start = day_start
-        self.day_end = day_end
+        self.shift = shift
+        self.strength = strength
+
+    def _day_score(self, hour):
+        # normalization
+        h = hour % 24.0
+
+        # sinusoid
+        day = 0.5 * (1 + np.cos(2 * np.pi * (h - 12) / 24.0))
+        return day
 
     def predict(self, features):
         hour = float(features[self.idx])
-        is_day = (hour >= self.day_start) and (hour < self.day_end)
 
-        if is_day:
-            return np.array([1.0, 0.0])  # day
-        else:
-            return np.array([0.0, 1.0])  # night
+        day = self._day_score(hour)
+        night = 1.0 - day
+
+        return np.array([day, night])
 
     def bias(self, losses, features):
         losses = losses.copy()
         hour = float(features[self.idx])
-        is_day = (hour >= self.day_start) and (hour < self.day_end)
 
-        if is_day:
-            losses[0] -= 1.0
-            losses[1] += 1.0
-        else:
-            losses[0] += 1.0
-            losses[1] -= 1.0
+        day = self._day_score(hour)
+        night = 1.0 - day
 
-        return losses, self.predict(features)
+        directional = day - night  # in [-1, 1]
+
+        losses[0] -= self.strength * directional
+        losses[1] += self.strength * directional
+
+        return losses, np.array([day, night])
 
 class WindRegime:
     def __init__(self, wind_feature_idx, wind_mean, wind_std, strength=2.0):
@@ -268,4 +294,10 @@ class Regime:
     def update(self, features, losses):
         if hasattr(self.predictor, "update"):
             losses, p_target = self.prior.bias(losses, features)
-            self.predictor.update(features, losses, p_target, target_strength=5.0)
+
+            self.predictor.update(
+                features,
+                losses,
+                p_target,
+                target_strength=0.5
+            )
