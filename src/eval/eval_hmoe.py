@@ -10,24 +10,21 @@ def main():
 
     targets, experts, regime_features, valid_idx = prepare_features(df)
 
-    history = 5000 #5000
-    test_step = 50
+    history = 5000 # 5000
+    test_step = 20
     model = "BOA" # MLpol, MLprod, BOA, FTRL
-    context = {} # {} ; ("trend", "wind", "daynight")
+    context = ("daynight") # {} ; ("trend", "updown", "wind", "volatility", "daynight")
 
-    errors = {
-        "HMoE": [],
-        "RF": [],
-        "LGBM": [],
-        "Ridge": [],
-    }
+    if context=={}:
+        method="MoE"
+    else:
+        method=f"HMoE_{context}"
 
-    mape_errors = {
-        "HMoE": [],
-        "RF": [],
-        "LGBM": [],
-        "Ridge": [],
-    }
+    errors = {name: [] for name in ["HMoE", "RF", "LGBM", "Ridge"]}
+    mape_errors = {name: [] for name in ["HMoE", "RF", "LGBM", "Ridge"]}
+
+    all_y_true = []
+    all_preds = {name: [] for name in ["HMoE", "RF", "LGBM", "Ridge"]}
 
     for t in tqdm(range(history, len(valid_idx) - 1, test_step), desc="Evaluation"):
         idx_train = valid_idx[t - history : t]
@@ -44,14 +41,20 @@ def main():
             "Ridge": experts.loc[idx_test, "Ridge_Global"],
         }
 
+        all_y_true.append(y_true)
+
         for name, y_pred in preds.items():
+            all_preds[name].append(y_pred)
+
             err = y_true - y_pred
             errors[name].append(err)
+
             mape_errors[name].append(
                 np.abs(err / np.clip(y_true, 1e-8, None))
             )
 
     results = []
+    y_true_all = np.array(all_y_true)
 
     for name in errors.keys():
         err = np.array(errors[name])
@@ -59,6 +62,13 @@ def main():
         sq_err = err ** 2
 
         mape = np.abs(err) / np.maximum(np.abs(y_true), 1e-8)
+
+        y_pred_all = np.array(all_preds[name])
+
+        ss_res = np.sum((y_true_all - y_pred_all) ** 2)
+        ss_tot = np.sum((y_true_all - y_true_all.mean()) ** 2)
+
+        r2 = 1 - ss_res / ss_tot if ss_tot > 0 else np.nan
 
         results.append({
             "model": name,
@@ -77,10 +87,13 @@ def main():
             "MAPE_mean": mape.mean() * 100,
             "MAPE_var": mape.var() * 100,
             "MAPE_p95": np.quantile(mape, 0.95) * 100,
+
+            # R²
+            "R2": r2,
         })
 
     results_df = pd.DataFrame(results)
-    results_df.to_csv("data/eval/test_eval_regimes_trend_moe.csv", index=False)
+    results_df.to_csv(f"data/eval/{method}_hist-{history}_{model}.csv", index=False)
 
     print(results_df)
 
