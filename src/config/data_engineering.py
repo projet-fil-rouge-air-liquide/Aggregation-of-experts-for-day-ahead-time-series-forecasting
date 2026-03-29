@@ -5,7 +5,6 @@ def build_features(df):
     """Fonction qui construit les features à partir des colonnes
     issues de /Data."""
 
-    rng = np.random.default_rng(42)
     n = len(df)
 
     # Wind Direction Meteo
@@ -23,8 +22,10 @@ def build_features(df):
 
     # Plage jour/ nuit 
     hour = np.round(np.arctan2(df["Hour_sin"], df["Hour_cos"]) * 12 / np.pi) % 24
-    is_day = ((hour >= 6) & (hour < 21)).values # True de 6h à 20h sinon false
-    is_night = ~is_day # True de 21h à 5h sinon false
+    # Day = [6h, 20h]
+    # Night = [21h, 5h]
+    is_day = ((hour >= 6) & (hour < 21)).values
+    is_night = ~is_day
 
     q33 = df["Wind_Norm"].quantile(0.33)
     q66 = df["Wind_Norm"].quantile(0.66)
@@ -32,73 +33,119 @@ def build_features(df):
     mask_med = ((df["Wind_Norm"] > q33) & (df["Wind_Norm"] <= q66)).values
     mask_high = (df["Wind_Norm"] > q66).values
 
-    def fill_with_noise_every_2_3h(src_col, keep_mask, noise_scale=0.3):
-        """
-        keep_mask : tableau de booléens issu de build_features()
-        - keep_mask = True  : vraie valeur
-        - keep_mask = False : avec bruit N(mu, sigma*noise_scale)
-          Toutes les 2 ou 3 heures.
-          Les heures intermédiaires hors-créneau : interpolation linéaire
-          entre les deux points de bruit les plus proches.
-        """
-        values = df[src_col].values.copy()
-        result = np.full(n, np.nan)
+    def masked_feature(src_col, keep_mask):
+        """Vraie valeur où keep_mask est True, 0.0 sinon (vectorisé)."""
+        return np.where(keep_mask, df[src_col].values, 0.0)
 
-        mu = np.nanmean(values[keep_mask]) if keep_mask.any() else np.nanmean(values)
-        sigma = np.nanstd(values[keep_mask]) * noise_scale if keep_mask.any() else np.nanstd(values) * noise_scale
+    # Features pour le jour
+    df["P_curve_D"] = masked_feature("P_curve", is_day)
+    df["Wind_Norm_D"] = masked_feature("Wind_Norm", is_day)
+    df["Air_density_D"] = masked_feature("Air_density", is_day)
+    df["Wind_Norm_Cubes_NE_D"] = masked_feature("Wind_Norm_Cubes_NE", is_day)
+    df["Wind_Norm_Cubes_NW_D"] = masked_feature("Wind_Norm_Cubes_NW", is_day)
+    df["Wind_Norm_Cubes_SE_D"] = masked_feature("Wind_Norm_Cubes_SE", is_day)
+    df["Wind_Norm_Cubes_SW_D"] = masked_feature("Wind_Norm_Cubes_SW", is_day)
 
-        hours_since_noise = 0
-        next_interval = int(rng.integers(2, 4))  # intervalle 2 ou 3h tiré aléatoirement
+    # Features pour la nuit
+    df["P_curve_N"] = masked_feature("P_curve", is_night)
+    df["Wind_Norm_N"] = masked_feature("Wind_Norm", is_night)
+    df["Air_density_N"] = masked_feature("Air_density", is_night)
+    df["Wind_Norm_Cubes_NE_N"] = masked_feature("Wind_Norm_Cubes_NE", is_night)
+    df["Wind_Norm_Cubes_NW_N"] = masked_feature("Wind_Norm_Cubes_NW", is_night)
+    df["Wind_Norm_Cubes_SE_N"] = masked_feature("Wind_Norm_Cubes_SE", is_night)
+    df["Wind_Norm_Cubes_SW_N"] = masked_feature("Wind_Norm_Cubes_SW", is_night)
 
-        for i in range(n):
-            if keep_mask[i]:
-                # Vraie valeur
-                result[i] = values[i]
-                hours_since_noise = 0
-                next_interval = int(rng.integers(2, 4))
-            else:
-                hours_since_noise += 1
-                if hours_since_noise == 1 or hours_since_noise % next_interval == 0:
-                    # Bruit toutes les 2 à 3h (choix aléatoire)
-                    result[i] = rng.normal(loc=mu, scale=sigma)
-                    next_interval = int(rng.integers(2, 4))
+    # Wind level
+    df["wind_low"] = masked_feature("Wind_Norm_Cubes", mask_low)
+    df["wind_med"] = masked_feature("Wind_Norm_Cubes", mask_med)
+    df["wind_high"] = masked_feature("Wind_Norm_Cubes", mask_high)
 
-        # Interpolation linéaire des NaN entre les points de bruit
-        series = pd.Series(result)
-        series = series.interpolate(method='linear')
-        # Remplir les NaN restants en début/fin
-        series = series.bfill().ffill()
+    df["wind_low_D"] = masked_feature("Wind_Norm_Cubes", mask_low & is_day)
+    df["wind_med_D"] = masked_feature("Wind_Norm_Cubes", mask_med & is_day)
+    df["wind_high_D"] = masked_feature("Wind_Norm_Cubes", mask_high & is_day)
+    df["wind_low_N"] = masked_feature("Wind_Norm_Cubes", mask_low & is_night)
+    df["wind_med_N"] = masked_feature("Wind_Norm_Cubes", mask_med & is_night)
+    df["wind_high_N"] = masked_feature("Wind_Norm_Cubes", mask_high & is_night)
 
-        return series.values
+    # Lags jour/ nuit
+    df["Y_lag_24h_D"] = masked_feature("Y_lag_24h", is_day)
+    df["Wind_Norm_lag_24h_D"] = masked_feature("Wind_Norm_lag_24h", is_day)
+    df["Y_lag_24h_N"] = masked_feature("Y_lag_24h", is_night)
+    df["Wind_Norm_lag_24h_N"] = masked_feature("Wind_Norm_lag_24h", is_night)
 
-    # Features pour le jour : vraies valeurs le jour et bruit toutes les 2-3h (aléatoire) la nuit
-    df["P_curve_D"] = fill_with_noise_every_2_3h("P_curve", is_day)
-    df["Wind_Norm_D"] = fill_with_noise_every_2_3h("Wind_Norm", is_day)
-    df["Air_density_D"] = fill_with_noise_every_2_3h("Air_density", is_day)
-    df["Wind_Norm_Cubes_NE_D"] = fill_with_noise_every_2_3h("Wind_Norm_Cubes_NE", is_day)
-    df["Wind_Norm_Cubes_NW_D"] = fill_with_noise_every_2_3h("Wind_Norm_Cubes_NW", is_day)
-    df["Wind_Norm_Cubes_SE_D"] = fill_with_noise_every_2_3h("Wind_Norm_Cubes_SE", is_day)
-    df["Wind_Norm_Cubes_SW_D"] = fill_with_noise_every_2_3h("Wind_Norm_Cubes_SW", is_day)
+    # --- Saisons & Mois (colonnes ajoutées en bloc pour éviter la fragmentation) ---
+    dates = pd.to_datetime(df['Date_Heure'])
+    month_day = dates.dt.month * 100 + dates.dt.day
 
-    # Features pour la nuit : vraies valeurs la nuit et bruit toutes les 2-3h (aléatoire aussi) le jour
-    df["P_curve_N"] = fill_with_noise_every_2_3h("P_curve", is_night)
-    df["Wind_Norm_N"] = fill_with_noise_every_2_3h("Wind_Norm", is_night)
-    df["Air_density_N"] = fill_with_noise_every_2_3h("Air_density", is_night)
-    df["Wind_Norm_Cubes_NE_N"] = fill_with_noise_every_2_3h("Wind_Norm_Cubes_NE", is_night)
-    df["Wind_Norm_Cubes_NW_N"] = fill_with_noise_every_2_3h("Wind_Norm_Cubes_NW", is_night)
-    df["Wind_Norm_Cubes_SE_N"] = fill_with_noise_every_2_3h("Wind_Norm_Cubes_SE", is_night)
-    df["Wind_Norm_Cubes_SW_N"] = fill_with_noise_every_2_3h("Wind_Norm_Cubes_SW", is_night)
+    # 4 saisons
+    #is_spring = ((month_day >= 320) & (month_day <= 620)).values
+    #is_summer = ((month_day >= 621) & (month_day <= 922)).values
+    #is_autumn = ((month_day >= 923) & (month_day <= 1222)).values
+    #is_winter = ((month_day >= 1223) | (month_day <= 319)).values
+    
+    #season_names = ["spring", "summer", "autumn", "winter"]
+    #season_masks = [is_spring, is_summer, is_autumn, is_winter]
 
-    # Wind level (bruit plus faible car beaucoup de hors-créneau)
-    df["wind_low"] = fill_with_noise_every_2_3h("Wind_Norm_Cubes", mask_low, noise_scale=0.1)
-    df["wind_med"] = fill_with_noise_every_2_3h("Wind_Norm_Cubes", mask_med, noise_scale=0.1)
-    df["wind_high"] = fill_with_noise_every_2_3h("Wind_Norm_Cubes", mask_high, noise_scale=0.1)
+    # 2 saisons : fusion deux à deux
+    is_summer = ((month_day >= 320) & (month_day <= 922)).values
+    is_winter = ((month_day >= 923) | (month_day <= 319)).values
 
-    df["wind_low_D"] = fill_with_noise_every_2_3h("Wind_Norm_Cubes", mask_low & is_day, noise_scale=0.1)
-    df["wind_med_D"] = fill_with_noise_every_2_3h("Wind_Norm_Cubes", mask_med & is_day, noise_scale=0.1)
-    df["wind_high_D"] = fill_with_noise_every_2_3h("Wind_Norm_Cubes", mask_high & is_day, noise_scale=0.1)
-    df["wind_low_N"] = fill_with_noise_every_2_3h("Wind_Norm_Cubes", mask_low & is_night, noise_scale=0.1)
-    df["wind_med_N"] = fill_with_noise_every_2_3h("Wind_Norm_Cubes", mask_med & is_night, noise_scale=0.1)
-    df["wind_high_N"] = fill_with_noise_every_2_3h("Wind_Norm_Cubes", mask_high & is_night, noise_scale=0.1)
+    season_names = ["summer", "winter"]
+    season_masks = [is_summer, is_winter]
+
+
+    base_phys = ["P_curve", "Wind_Norm", "Air_density",
+                 "Wind_Norm_Cubes_NE", "Wind_Norm_Cubes_NW",
+                 "Wind_Norm_Cubes_SE", "Wind_Norm_Cubes_SW"]
+    base_lags = ["Y_lag_24h", "Wind_Norm_lag_24h"]
+
+    new_cols = {}
+
+    for sname, smask in zip(season_names, season_masks):
+        for col in base_phys + base_lags:
+            new_cols[f"{col}_{sname}"] = masked_feature(col, smask)
+
+    # Trimestres (4 experts de 3 mois)
+    month_num = dates.dt.month.values
+    trimester_names  = ["trim_1", "trim_2", "trim_3", "trim_4"]
+    trimester_months = [
+        [11, 12, 1],
+        [2, 3, 10],
+        [4, 5, 9],
+        [6, 7, 8],
+    ]
+
+    for tname, months in zip(trimester_names, trimester_months):
+        tmask = np.isin(month_num, months)
+        for col in base_phys + base_lags:
+            new_cols[f"{col}_{tname}"] = masked_feature(col, tmask)
+
+    # --- Experts Jour/Nuit bruités (3 niveaux de bruit) ---
+    _noisy_base_cols = ["P_curve", "Wind_Norm", "Air_density",
+                        "Wind_Norm_Cubes_NE", "Wind_Norm_Cubes_NW",
+                        "Wind_Norm_Cubes_SE", "Wind_Norm_Cubes_SW",
+                        "wind_low", "wind_med", "wind_high",
+                        "Y_lag_24h", "Wind_Norm_lag_24h"]
+
+    # nf = noise faible, nm = noise modéré, nh = noise haut (fort)
+    # Le ratio est appliqué à l'écart-type de chaque feature
+    noise_levels = {"nf": 0.1, "nm": 0.5, "nh": 0.9}
+
+    rng = np.random.RandomState(42)
+
+    for suffix, ratio in noise_levels.items():
+        for col in _noisy_base_cols:
+            values = df[col].values
+            col_std = values.std()
+            # Deux tirages indépendants pour jour et nuit
+            noise_d = rng.normal(0, ratio * col_std, size=n)
+            noise_n = rng.normal(0, ratio * col_std, size=n)
+            # Expert Jour : signal propre le jour, bruité la nuit
+            new_cols[f"{col}_D_{suffix}"] = np.where(is_day, values, values + noise_d)
+            # Expert Nuit : signal propre la nuit, bruité le jour
+            new_cols[f"{col}_N_{suffix}"] = np.where(is_night, values, values + noise_n)
+
+    # Ajout en une seule opération (évite la fragmentation)
+    df = pd.concat([df, pd.DataFrame(new_cols, index=df.index)], axis=1)
 
     return df

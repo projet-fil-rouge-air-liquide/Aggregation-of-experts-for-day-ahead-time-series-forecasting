@@ -18,8 +18,14 @@ df = df.iloc[:n_total]
 y = df["Eolien_MW"]
 X = df.drop(columns="Eolien_MW")
 
-# Bornes train/valid
-duree_test = 2184   # 3 mois (91 jours)
+# Bornes train/valid : influence la taille des données en sortie notamment
+#duree_test = 2184   # 3 mois (91 jours)
+#duree_valid = 8640  # 6 mois (2 saisons)
+#Obtenir un CSV avec 7000 lignes :
+#duree_test = 7008   # environ 10 mois (91 jours)
+#duree_valid = 8640  # 6 mois (2 saisons)
+#Obtenir un CSV avec 10000 lignes :
+duree_test = 10008   # environ 10 mois (91 jours)
 duree_valid = 8640  # 6 mois (2 saisons)
 
 # On calcule les points de coupure en partant de la FIN (n_total)
